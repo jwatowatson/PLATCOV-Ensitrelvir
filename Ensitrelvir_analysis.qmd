@@ -37,7 +37,6 @@ add_epoch = T # if using non-concurrent controls
 
 my_probs = c(0.025, 0.1, .5, .9, .975)
 source('functions.R')
-source('Data_curation/user_settings.R')
 trt_colors = get_trt_colors()
 
 interim_version <- "v10"
@@ -57,12 +56,11 @@ study_threshold = 0.9
 ```{r define_population}
 #| echo: false
 # set as file with relevant dataset
-itt_population_all = get_itt_population(prefix_drop_rand = prefix_drop_rand)
+itt_population_all = read_csv('ITT_population.csv')
 
 f_name = paste0('Analysis_Data/',intervention,'_analysis.csv')
 platcov_dat = read.csv(f_name)
 platcov_dat$Trt[platcov_dat$Trt=='Nirmatrelvir + Ritonavir']='Nirmatrelvir'
-platcov_dat$Trt[platcov_dat$Trt=='Nirmatrelvir + Ritonavir + Molnupiravir']='Nirmatrelvir+Molnupiravir'
 platcov_dat$Rand_date = as.POSIXct(platcov_dat$Rand_date)
 trt_intervention = unique(platcov_dat$Trt)
 
@@ -91,29 +89,11 @@ pop_table = platcov_dat %>% distinct(ID, .keep_all = T)
 table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 ```
 
-## Grouping variants
 
-To reduce the number of variant groups, as suggested by Liz.
-
-THIS SHOULD BE MOVED OUT OF HERE
-
-```{r}
-
-platcov_dat$Variant2 <- as.character(platcov_dat$Variant)
-
-platcov_dat$Variant2[platcov_dat$Variant2 %in% c("BA.5.2", "BA.5.5", "BQ.1")] <- "BA.5"
-platcov_dat$Variant2[platcov_dat$Variant2 %in% c("BN.1.2", "BN.1.3", "CH.1.1")] <- "BA.2.75"
-platcov_dat$Variant2[platcov_dat$Variant2 %in% c("XBB1.5-like with F456L")] <- "XBB.1.5-like"
-
-platcov_dat$Variant2 <- as.factor(platcov_dat$Variant2)
-```
 
 ## Baseline characteristics
 
-```{r}
-
-#platcov_dat$Variant <- platcov_dat$Variant2
-
+```{r baseline}
 #| echo: false
 platcov_dat = platcov_dat %>% group_by(ID, Timepoint_ID) %>%
   mutate(daily_VL = mean(log10_viral_load),
@@ -143,7 +123,7 @@ tab.ff <- Baseline_data %>% filter(mITT) %>%
     dependent = "Trt", # name of grouping / treatment variable
     explanatory = c("Site", "Age", 'BMI', "Weight",
                     "Baseline.viral.load",'Sex',
-                    "Variant2",'Symptom_onset','Vaccinated'),
+                    'Symptom_onset','Vaccinated'),
     total_col = TRUE, # add column with statistics for the whole sample
     add_row_total = TRUE, # add column with number of valid cases
     include_row_missing_col = FALSE,
@@ -234,62 +214,7 @@ save(model_settings,
      file = model_setup_f_name)
 ```
 
-## BRMS checks
 
-```{r brms_slopes}
-# platcov_dat_no_effect = platcov_dat_analysis %>% 
-#   filter(Trt %in% c('No study drug', 'Ivermectin',
-#                     'Favipiravir', 'Fluoxetine',
-#                     'Nitazoxanide'))
-# nl_bf_form = 
-#   bf(formula = log10_viral_load | cens(censor) ~ alpha0*Time*exp(alpha) + beta0,
-#      alpha ~ (1|ID),
-#      alpha0 ~ 1,
-#      beta0 ~ 1 + (1|ID),
-#      nl = T)
-# mod_naive = brm(formula = nl_bf_form,
-#                 data = platcov_dat_no_effect,
-#                 prior = c(prior(normal(-0.5, 0.5), nlpar='alpha0'),
-#                           prior(normal(5,2), nlpar=beta0)),
-#                 family = 'student', cores = 4, chains = 4)
-# mod_naive = brm(log10_viral_load | cens(censor) ~ Time + Site + s(Study_time,k=6) + (1+Time | ID),
-#                 data = platcov_dat_no_effect,
-#                 prior = c(prior(lkj(2), class = "cor"),
-#                           prior(normal(5, 5), class = Intercept),
-#                           prior(constant(7), class = 'nu')),
-#                 family = 'student', cores = 4, chains = 4)
-# thetas = ranef(mod_naive, summary = F)
-# mean_slopes = fixef(mod_naive, summary = F)
-# slopes_randef = apply(thetas$ID[,,'Time']+mean_slopes[,'Time'], 2,
-#                       quantile, probs=c(0.1, 0.5, 0.9))
-# slopes_dat = merge(data.frame(ID=colnames(slopes_randef),
-#                               slope_re = slopes_randef[2, ],
-#                               slope_re_lower = slopes_randef[1, ],
-#                               slope_re_upper = slopes_randef[3, ]),
-#                    platcov_dat[!duplicated(platcov_dat$ID),],
-#                    by = 'ID') %>%
-#   arrange(Rand_date)
-# mod_gam = mgcv::gam(slope_re ~ s(Study_time,k=5), data=slopes_dat)
-# summary(mod_gam)
-# par(las=1, family='serif')
-# plot(slopes_dat$Rand_date, slopes_dat$slope_re,
-#      ylab='Slope random effect',
-#      ylim=c(min(slopes_dat$slope_re_lower),
-#             max(slopes_dat$slope_re_upper)),
-#      col=slopes_dat$trt_color,
-#      xlab='Randomisation date', panel.first=grid(), pch=16)
-# for(i in 1:nrow(slopes_dat)){
-#   lines(rep(slopes_dat$Rand_date[i],2),
-#         c(slopes_dat$slope_re_lower[i], slopes_dat$slope_re_upper[i]),
-#         col=adjustcolor(slopes_dat$trt_color[i],alpha.f = .4))
-# }
-# legend('bottomleft',legend = unique(slopes_dat$Trt), col = unique(slopes_dat$trt_color),pch=16,lwd=2,inset=0.02)
-# abline(MASS::rlm(slopes_dat$slope_re~slopes_dat$Rand_date),
-#        col='darkblue',lwd=3,lty=2)
-# lines(slopes_dat$Rand_date, predict(mod_gam),lwd=3)
-# 
-# summary(lm(slope_re~Rand_date+Trt, data = slopes_dat))
-```
 
 ```{r}
 if(RUN_MODELS){

@@ -10,7 +10,7 @@ data.LA8$Date = as.POSIXct(data.LA8$Date,format='%a %b %d %H:%M:%S %Y')
 data.LA8 = data.LA8[data.LA8$Date > "2023-03-17" & data.LA8$Date <= '2024-04-22',  ]
 
 data.TH1$ID = paste('PLT-TH1-',data.TH1$randomizationID,sep='')
-data.LA8$ID = paste('PLT-LA08-',data.LA8$randomizationID,sep='')
+data.LA8$ID = paste('PLT-LA8-',data.LA8$randomizationID,sep='')
 
 xx = rbind(data.TH1[, c('ID', 'Treatment')],
            data.LA8[, c('ID', 'Treatment')])
