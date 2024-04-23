@@ -1,4 +1,5 @@
 # list of functions for plotting data
+
 plot_effect_estimates = function(effect_ests, #list of stan outputs
                                  plot_models, # indices of models to plot in list
                                  my_pch=1,
@@ -49,6 +50,8 @@ plot_effect_estimates = function(effect_ests, #list of stan outputs
   
 }
 
+
+
 plot_baseline_data = function(input_data){
   
   baseline_ind = input_data$Timepoint_ID==0
@@ -67,7 +70,7 @@ plot_baseline_data = function(input_data){
 }
 
 
-plot_serial_data = function(xx, xlims=c(0,7), plot_points=T, alpha.f=.3){
+plot_serial_data = function(xx, xlims=c(0,7)){
   
   daily_VL_data = xx %>% group_by(ID, Time) %>%
     mutate(daily_VL = mean(log10_viral_load,na.rm = T))
@@ -84,8 +87,8 @@ plot_serial_data = function(xx, xlims=c(0,7), plot_points=T, alpha.f=.3){
   
   par(las=1)
   plot(summary_VL_data$Timepoint_ID, summary_VL_data$daily_VL,
-       ylab = 'SARS-CoV-2 genomes/mL', panel.first=grid(),
-       xlab = 'Time since randomisation (days)',
+       ylab = 'SARS CoV2 genomes/mL', panel.first=grid(),
+       xlab = 'Time since randomization (days)',
        xlim = xlims, yaxt='n',type='n',
        ylim = c(0.7, 8))
   axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
@@ -93,22 +96,19 @@ plot_serial_data = function(xx, xlims=c(0,7), plot_points=T, alpha.f=.3){
                                       expression(10^6),
                                       expression(10^8)))
   
-  if(plot_points) {
-    points(daily_VL_data$Time, daily_VL_data$daily_VL,
-           col= adjustcolor(daily_VL_data$trt_color,alpha.f = alpha.f))
-  }
-  summary_VL_data$Trt_pch = as.numeric(as.factor(summary_VL_data$Trt))
+  points(daily_VL_data$Time, daily_VL_data$daily_VL,
+         col= adjustcolor(daily_VL_data$trt_color,.3),
+         pch = 1)
   for(tt in unique(summary_VL_data$Trt)){
     ind = summary_VL_data$Trt==tt
     lines(summary_VL_data$Timepoint_ID[ind],
-          summary_VL_data$daily_VL[ind], pch=summary_VL_data$Trt_pch[ind],
+          summary_VL_data$daily_VL[ind], pch=15,
           type='b',col = summary_VL_data$trt_color[ind],lwd=3)
   }
   
   legend('topright', col = summary_dat$trt_color, 
          legend = summary_dat$legend,
-         lwd=2, pch=summary_VL_data$Trt_pch,
-         cex=1, inset = 0.03)
+         lwd=2, pch=15, cex=1, inset = 0.03)
 }
 
 
@@ -117,6 +117,7 @@ bayes_R2 = function(mod_preds, mod_residuals) {
   var_res = apply(mod_residuals, 1, var)
   var_pred / (var_pred + var_res)
 }
+
 
 
 make_stan_inputs = function(input_data_fit, 
@@ -145,7 +146,7 @@ make_stan_inputs = function(input_data_fit,
   
   # make the covariate matrix
   # check no missing data
-  if(!all(!apply(input_data_fit[, union(int_covs_full,slope_covs_full)], 2, function(x) any(is.na(x))))){
+  if(!all(!apply(input_data_fit[, union(int_covs_full,slope_covs_full), drop=F], 2, function(x) any(is.na(x))))){
     stop('Missing data in covariate matrix!')
   }
   
@@ -233,13 +234,8 @@ make_stan_inputs = function(input_data_fit,
 }
 
 
-plot_variants = function(platcov_dat){
-  platcov_dat = platcov_dat %>%
-    mutate(year_month = paste(year(Rand_date), month(Rand_date), sep = '_')) %>%
-    distinct(ID, .keep_all = T)
-  xx=aggregate(Variant ~ year_month, data = platcov_dat, table)
-  
-}
+
+
 
 
 get_rates_linear_mod = function(mod_out, # single model fit - not a list
@@ -377,7 +373,7 @@ plot_data_model_fits =
       mtext(text = paste0(ID_map$ID_key[counter],
                           ' ',
                           ID_map$Trt[counter]),
-            side = 3, line = 0.5, cex=0.8)
+            side = 3, line = 0.5, cex=0.7)
       counter=counter+1
     }
     
@@ -401,9 +397,7 @@ plot_individ_curves = function(platcov_dat, IDs, xlims){
          xaxt='n', yaxt='n',
          panel.first=grid(), xlim=xlims,
          ylim = ylims)
-    # title(paste(id, platcov_dat$Trt[ind][1]))
     title(id)
-    lines(platcov_dat$Time[ind], platcov_dat$daily_VL[ind], lwd=2, lty=2,col='grey')
     points(platcov_dat$Time[ind],
            platcov_dat$log10_viral_load[ind],
            pch = as.numeric(platcov_dat$log10_cens_vl[ind]==platcov_dat$log10_viral_load[ind])+16)
@@ -414,7 +408,7 @@ plot_individ_curves = function(platcov_dat, IDs, xlims){
                                         expression(10^8)))
     
   }
-  
+  legend('topright', legend = c('>LLOQ','<LLOQ'), pch = 16:17, inset = 0.03)
 }
 
 
@@ -541,14 +535,15 @@ make_slopes_plot = function(stan_out,
                             ID_map, 
                             data_summary,
                             my_lims = c(5, 72), # hours
-                            my_vals = c(7,24,48,72)){
+                            my_vals = c(7,24,48,72),
+                            qq_show = 0.5){
   
-  slopes = -abs(rstan::extract(stan_out, pars='slope')$slope)
+  slopes = rstan::extract(stan_out, pars='slope')$slope
   
-  t12_output = data.frame(t_12_med = 24*log10(.5)/(apply(slopes,2,mean)),
-                          t_12_up = 24*log10(.5)/(apply(slopes,2,quantile,.9)),
-                          t_12_low = 24*log10(.5)/(apply(slopes,2,quantile,.1)),
-                          slope = apply(slopes,2,mean),
+  t12_output = data.frame(t_12_med = 24*log10(.5)/apply(slopes,2,mean),
+                          t_12_up = 24*log10(.5)/apply(slopes,2,quantile,.9),
+                          t_12_low = 24*log10(.5)/apply(slopes,2,quantile,.1),
+                          slope_median = apply(slopes,2,median),
                           ID_stan = analysis_data_stan$id[analysis_data_stan$ind_start])
   t12_output = merge(t12_output, ID_map, by = 'ID_stan')
   data_summary = merge(data_summary, t12_output, by.x = 'ID', by.y = 'ID_key')
@@ -560,7 +555,7 @@ make_slopes_plot = function(stan_out,
        yaxt='n', xaxt='n',
        xlim=my_lims, panel.first=grid(), xlab='', 
        pch=15, ylab='', col=data_summary$trt_color)
-  mtext(text = expression('t'[1/2] ~ ' (hours)'),side = 1,line=3, cex=1.3)
+  mtext(text = expression('t'[1/2] ~ ' (hours)'),side = 1,line=3)
   axis(1, at = my_vals,labels = my_vals)
   
   for(i in 1:nrow(data_summary)){
@@ -572,12 +567,13 @@ make_slopes_plot = function(stan_out,
   
   for(kk in which(!duplicated(data_summary$Trt))){
     ind = data_summary$Trt==data_summary$Trt[kk]
-    writeLines(sprintf('In %s the median clearance half life was %s (IQR %s to %s)',
+    writeLines(sprintf('In %s the median clearance half life was %s (range %s to %s)',
                        data_summary$Trt[kk],
                        round(median(data_summary$t_12_med[ind]),1),
-                       round(quantile(data_summary$t_12_med[ind],probs=0.25),1),
-                       round(quantile(data_summary$t_12_med[ind],probs=0.75),1)))
-    abline(v = median(data_summary$t_12_med[ind]), col=data_summary$trt_color[kk],lty=2,lwd=2)
+                       round(min(data_summary$t_12_med[ind]),1),
+                       round(max(data_summary$t_12_med[ind]),1)))
+    abline(v = quantile(data_summary$t_12_med[ind], probs=qq_show), 
+           col=data_summary$trt_color[kk],lty=2,lwd=2)
   }
   
   legend('bottomright', legend = unique(data_summary$Trt),
@@ -586,29 +582,29 @@ make_slopes_plot = function(stan_out,
   return(data_summary)
 }
 
-get_itt_population = function(){
-  rand.TH58 <- read.csv("~/Dropbox/PLATCOV/rand-TH58.csv")[0:9, ]
-  rand.TH57 <- read.csv("~/Dropbox/PLATCOV/rand-TH57.csv")[0:10, ]
+get_itt_population = function(prefix_drop_rand){
   
-  data.TH1 <- read.csv("~/Dropbox/PLATCOV/data-TH1.csv")
-  data.TH1$Date = as.POSIXct(data.TH1$Date,format='%a %b %d %H:%M:%S %Y')
+  require(tidyverse)
+  # TH58 and TH57 used envelopes so allocation is not recorded in the data-XXX.csv files
   
-  data.BR3 <- read.csv("~/Dropbox/PLATCOV/data-BR3.csv")
-  data.BR3$Date = as.POSIXct(data.BR3$Date,format='%a %b %d %H:%M:%S %Y')
-  
-  data.LA08 <- read.csv("~/Dropbox/PLATCOV/data-LA08.csv")
-  data.LA08$Date = as.POSIXct(data.LA08$Date,format='%a %b %d %H:%M:%S %Y')
-  
-  data.TH1$ID = paste('PLT-TH1-',data.TH1$randomizationID,sep='')
+  rand.TH58 <- read.csv(paste0(prefix_drop_rand, "/rand-TH58.csv"))[0:9, ]
+  rand.TH57 <- read.csv(paste0(prefix_drop_rand, "/rand-TH57.csv"))[0:10, ]
   rand.TH58$ID = paste('PLT-TH58-',rand.TH58$RandomisationID,sep='')
   rand.TH57$ID = paste('PLT-TH57-',rand.TH57$RandomisationID,sep='')
-  data.BR3$ID = paste('PLT-BR3-',data.BR3$randomizationID,sep='')
-  data.LA08$ID = paste('PLT-LA08-',data.LA08$randomizationID,sep='')
   
-  xx = rbind(data.TH1[, c('ID', 'Treatment')],
-             rand.TH58[, c('ID', 'Treatment')],
-             rand.TH57[, c('ID', 'Treatment')],
-             data.BR3[, c('ID', 'Treatment')])
+  ff_names = list.files(path = prefix_drop_rand, pattern = 'data',full.names = T)
+  data_list = list()
+  for(i in 1:length(ff_names)){
+    data_list[[i]] = read.csv(ff_names[i])
+    data_list[[i]]$Date = as.POSIXct(data_list[[i]]$Date,format='%a %b %d %H:%M:%S %Y')
+    my_prefix=gsub(x = gsub(x = strsplit(ff_names[i], split = 'data-')[[1]][2], pattern = '.csv',replacement = ''),pattern = '0',replacement = '')
+    data_list[[i]]$ID = paste('PLT-', my_prefix, '-', data_list[[i]]$randomizationID, sep='')
+    data_list[[i]] = data_list[[i]][, c('ID', 'Treatment')]
+  }
+  data_list[[length(ff_names)+1]]=rand.TH57[, c('ID', 'Treatment')]
+  data_list[[length(ff_names)+2]]=rand.TH58[, c('ID', 'Treatment')]
+  
+  xx = bind_rows(data_list)
   
   library(stringr)
   for(i in 1:nrow(xx)){
@@ -618,12 +614,14 @@ get_itt_population = function(){
     xx$ID[i]=id
   }
   
-  
   return(xx)
 }
 
-get_trt_colors = function(plot_cols=F){
-  trt_cols = array(dim = 11)
+
+
+
+get_trt_colors = function(){
+  trt_cols = array(dim = 13)
   names(trt_cols) = 
     c("Ivermectin",
       "Regeneron",
@@ -633,70 +631,225 @@ get_trt_colors = function(plot_cols=F){
       "Nitazoxanide",           
       "Fluoxetine",
       "Molnupiravir",
-      "Nirmatrelvir + Ritonavir",
+      "Nirmatrelvir+Molnupiravir",
       "Evusheld",
-      'Ensitrelvir')
+      'Ensitrelvir',
+      "Nirmatrelvir",
+      "Hydroxychloroquine")
   trt_cols['No study drug'] = viridis::viridis(n = 10)[8]
   trt_cols['Fluoxetine'] = viridis::viridis(n = 10)[5]
   trt_cols['Nitazoxanide'] = viridis::magma(n = 10)[8]
   trt_cols['Evusheld'] = viridis::magma(n = 10)[1]
   trt_cols['Favipiravir'] = viridis::plasma(n = 100)[92]
   trt_cols['Ivermectin'] = viridis::plasma(n = 10)[4]
-  trt_cols['Nirmatrelvir + Ritonavir'] = viridis::plasma(n = 10)[1]
+  trt_cols['Nirmatrelvir+Molnupiravir'] = viridis::plasma(n = 10)[3]
+  trt_cols['Nirmatrelvir'] = viridis::plasma(n = 10)[1]
   trt_cols['Regeneron'] = viridis::inferno(n = 10)[5]
   trt_cols['Molnupiravir'] = viridis::inferno(n = 10)[7]
   trt_cols['Remdesivir'] = RColorBrewer::brewer.pal('Dark2',n=8)[8]
   trt_cols['Ensitrelvir'] = RColorBrewer::brewer.pal('Set1',n=8)[1]
+  trt_cols['Hydroxychloroquine'] = RColorBrewer::brewer.pal('Paired',n=8)[1]
   
-  if(plot_cols){
-    my_labels = gsub(pattern = ' + Ritonavir',replacement = '',fixed = T,x = names(trt_cols))
-    plot(1:length(trt_cols), col=trt_cols, pch=16, cex=5, xlim = c(1,15),
-         xaxt='n',yaxt='n',xlab='',ylab='',bty='n')
-    text(x = 1:length(trt_cols)+2.5, y= 1:length(trt_cols), labels = my_labels)
-  }
   return(trt_cols)
 }
 
-
-assess_rebound = function(patient_dat,
-                          lower_bound=2,  # lower level such that VL is defined as non-detectable
-                          upper_bound=4,  # upper level such that VL is defined as "high"
-                          t_window=1.5      # time window during which it has to be undetectable
-){
-  xx = patient_dat %>% arrange(Time) %>% distinct(Timepoint_ID, .keep_all = T)
-  rebound = virus_cleared = F
-  if(nrow(xx)>3){
-    for(i in 2:nrow(xx)){
-      ind = which(xx$Time <= xx$Time[i] & (xx$Time >= (xx$Time[i]-t_window)))
-      if(all(xx$daily_VL[ind] <= lower_bound)){
-        virus_cleared=T
-      }
-      if(virus_cleared & xx$daily_VL[i] >= upper_bound){
-        rebound = T
-        writeLines(sprintf('patient %s treated with %s had a rebound identified on day %s', 
-                           xx$ID[1], xx$Trt[1],xx$Timepoint_ID[i]))
-      }
-      # print(rebound)
-    }
-  }
-  return(rebound)
+plot_trt_colors = function(){
+  trt_cols= get_trt_colors()
+  plot(NA, NA, xaxt='n', xlab='', yaxt='n', ylab='',xlim=0:1, ylim=0:1,bty='n')
+  legend('right', legend = names(trt_cols), fill = trt_cols,border = NA,cex=1.5)
 }
 
-find_rebounds = function(platcov_dat, 
-                         lower_bound=2,  # lower level such that VL is defined as non-detectable
-                         upper_bound=4,  # upper level such that VL is defined as "high"
-                         t_window=2      # time window during which it has to be undetectable
-){
-  platcov_dat$rebound=NA
-  for(id in unique(platcov_dat$ID)){
-    ind=platcov_dat$ID==id
-    platcov_dat$rebound[ind] = assess_rebound(platcov_dat[ind,],
-                                              lower_bound = lower_bound,
-                                              upper_bound = upper_bound,
-                                              t_window = t_window)
-  }
-  return(platcov_dat)
+
+plot_vl <- function(dataplot, trt_colors){
+  dataplot <- dataplot %>%
+    distinct(ID, Timepoint_ID, daily_VL, .keep_all = T)
+  
+  dataplot_median <- dataplot %>%
+    group_by(Trt, Timepoint_ID) %>%
+    summarise(median_VL = median(daily_VL), .groups = 'drop')
+  
+  colors <- trt_colors[names(trt_colors) %in% unique(dataplot$Trt)]
+  colors <- colors[levels(dataplot$Trt)]
+  labels <- names(colors)
+  labels[labels == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+  
+  f_tab <- dataplot %>%
+    distinct(ID, Trt) %>%
+    group_by(Trt) %>%
+    summarise(n = n()) %>%
+    as.data.frame()
+  
+  f_tab$lab <- paste0(f_tab$Trt, ": ", f_tab$n)
+  f_text <- paste(f_tab$lab, collapse = '\n')
+  
+  
+  G <- ggplot(dataplot, aes(x = Timepoint_ID, y = log10_viral_load, col = Trt)) +
+    geom_jitter(width = 0.15, alpha = 0.4, size = 1.75, aes(shape = censor) ) +
+    geom_line(data = dataplot_median, aes(x =  Timepoint_ID, y = median_VL, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
+    geom_point(data = dataplot_median, aes(x = Timepoint_ID, y = median_VL, fill = Trt)
+               , size = 3.5, shape = 24, col = "black") +
+    scale_shape_manual(values = c(25, 21), guide = NULL) +
+    scale_color_manual(label = labels, values = colors, name = "") +
+    scale_fill_manual(label = labels, values = colors, name = "") +
+    annotate("text", x = 2.5, y = 9, label = f_text, hjust = 0, vjust = 1)  +
+    theme_bw() +
+    scale_x_continuous(breaks = 0:14) +
+    scale_y_continuous(labels=label_math(), breaks = seq(0,10,2), limits = c(0,9)) +
+    xlab("Time since randomisation (days)") +
+    ylab("SARS-CoV-2 genomes/mL") + 
+    theme(axis.title  = element_text(face = "bold"),
+          plot.title = element_text(face = "bold"),
+          legend.position = "bottom",
+          axis.text = element_text(size = 10)) +
+    ggtitle("\nA) Viral load dynamics")
+  
+  G
 }
+
+plot_vl_box <- function(dataplot, trt_colors){
+  dataplot$Timepoint_ID <- as.factor(dataplot$Timepoint_ID)
+  dataplot <- dataplot %>%
+    distinct(ID, Timepoint_ID, daily_VL, .keep_all = T)
+  
+  dataplot_median <- dataplot %>%
+    group_by(Trt, Timepoint_ID) %>%
+    summarise(median_VL = median(daily_VL), .groups = 'drop')
+  
+  f_tab <- dataplot %>%
+    distinct(ID, Trt) %>%
+    group_by(Trt) %>%
+    summarise(n = n()) %>%
+    as.data.frame()
+  f_tab$lab <- paste0("n = ", f_tab$n)
+  
+  colors <- trt_colors[names(trt_colors) %in% unique(dataplot$Trt)]
+  colors <- colors[levels(dataplot$Trt)]
+  labels <- names(colors)
+  labels[labels == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+  
+  G <- ggplot(dataplot, aes(x = Timepoint_ID, y = daily_VL, fill = Trt)) +
+    geom_jitter(width = 0.2, alpha = 0.25, size = 1.5, aes(shape = censor, fill = Trt),
+                stroke = 0.5) +
+    geom_boxplot(width=0.65, size = 0.5, outlier.shape = NA,  coef = 0, aes(fill = Trt), alpha = 0.3) +
+    geom_line(data = dataplot_median, aes(x =  Timepoint_ID, y = median_VL, group = Trt, col = Trt), 
+              linewidth = 1.2, linetype = 1) +
+    geom_point(data = dataplot_median, aes(x = Timepoint_ID, y = median_VL, fill = Trt)
+               , size = 3.5, shape = 24, col = "black") +
+    scale_shape_manual(values = c(25, 21), guide = NULL) +
+    scale_color_manual(label = labels, values = colors, name = "") +
+    scale_fill_manual(label = labels, values = colors, name = "") +
+    facet_grid(.~Trt) +
+    theme_bw() +
+    scale_y_continuous(labels=label_math(), breaks = seq(0,10,1), limits = c(0,9)) +
+    xlab("Time since randomisation (days)") +
+    ylab("SARS-CoV-2 genomes/mL") + 
+    theme(axis.title  = element_text(face = "bold"),
+          plot.title = element_text(face = "bold"),
+          legend.position = "none",
+          axis.text = element_text(size = 10),
+          strip.text = element_text(size = 10, face = 'bold')) +
+    geom_hline(yintercept = 0, col = "red", linetype = "dashed", linewidth = 0.75) +
+    geom_text(data = f_tab, x = 4, y = 9, aes(label = lab),
+              hjust = 0, vjust = 1) +
+    ggtitle("Viral kinetics")
+  G
+}
+
+slope_to_hl  <- function(slope){
+  24*log10(2)/(-(slope)) 
+}
+
+formatter <- function(x){  
+  (x-1)*100 
+}
+
+plot_trt_effs <- function(effect_ests){
+  effect_ests_plot <- as.data.frame(do.call("rbind", effect_ests))
+  effect_ests_plot <- exp(effect_ests_plot)
+  colnames(effect_ests_plot)[1:5] <- c("L95", "L80", "med", "U80", "U95")
+  
+  effect_ests_plot$arm <- row.names(effect_ests_plot)
+  effect_ests_plot$arm <- as.factor(effect_ests_plot$arm)
+  
+  #Labeling reference arm
+  lab_ref <- ref_arm
+  lab_ref[lab_ref == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+  #Labeling intervention arm
+  my.labs <- levels(effect_ests_plot$arm)
+  my.labs[my.labs == "Nirmatrelvir+Molnupiravir"] <- "Nirmatrelvir +\nMolnupiravir"
+  
+  title <- paste0("B) Estimated treatment effects \nrelative to ", tolower(lab_ref), " arm")
+  
+  G <- ggplot(effect_ests_plot, 
+         aes(x = arm, y = med)) +
+    geom_point(position = position_dodge(width = 0.5), size = 4, col =  model_cols) +
+    geom_errorbar(aes(x = arm, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0, linewidth = 0.65, col =  model_cols) +
+    geom_errorbar(aes(x = arm, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5, col =  model_cols) +
+    geom_rect(aes(ymin = min(0.75, min(effect_ests_plot$L95)-0.05), ymax = study_threshold, xmin = 0, xmax = length(my.labs)+1), fill = "#7D7C7C", alpha = 0.2, col = NA) +
+    coord_flip() +
+    theme_bw() +
+    geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
+    scale_y_continuous(labels = formatter, limits = c(min(0.75, min(effect_ests_plot$L95)-0.05), max(effect_ests_plot$U95) + .25), expand = c(0,0),
+                       breaks = seq(0.2,3.6, 0.2)) +
+    scale_x_discrete(labels= my.labs) +
+    ylab("Change in viral clearance rate (%)") +
+    xlab("") +
+    ggtitle(title)  + 
+    theme(axis.title  = element_text(face = "bold"),
+          plot.title = element_text(face = "bold"),
+          legend.position = "bottom",
+          axis.text = element_text(size = 10))
+  G
+}
+
+
+
+plot_hl <- function(Half_life, trt_colors){
+  Half_life_med <- Half_life %>%
+    group_by(Trt) %>%
+    summarise(med_hl = median(t_12_med))  %>%
+    as.data.frame()
+  
+  colors <- trt_colors[names(trt_colors) %in% unique(Half_life$Trt)]
+  colors <- colors[levels(Half_life$Trt)]
+  labels <- names(colors)
+  labels[labels == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+  
+  f_tab <- Half_life %>%
+    distinct(ID, Trt) %>%
+    group_by(Trt) %>%
+    summarise(n = n()) %>%
+    as.data.frame()
+  f_tab$med_hl <- Half_life_med$med_hl
+  
+  f_tab$lab <- paste0(f_tab$Trt,": n = ", f_tab$n, "; t_1/2 = ", round(f_tab$med_hl,1), " h")
+  freq_lab <- paste(f_tab$lab, collapse = '\n')
+  
+  
+  G <- ggplot(Half_life, aes(x = t_12_med, y = ID, col = Trt)) +
+    geom_errorbar(aes(xmin = t_12_low, xmax = t_12_up),width = 0, alpha = 0.4) +
+    geom_point(size = 2) +
+    geom_vline(data = Half_life_med, aes(xintercept = med_hl, col = Trt),linewidth = 1) +
+    theme_bw() +  
+    scale_y_discrete(expand = c(0.01,0.01), breaks = NULL) +
+    scale_color_manual(label = labels, values = colors, name = "") +
+    scale_x_continuous(breaks = seq(0,40,5), expand = c(0,0)) +
+    guides(color = guide_legend(override.aes=list(linetype = rep(0, length(unique(Half_life$Trt)))))) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks = element_blank(),
+          axis.title = element_text(size = 12, face = "bold"),
+          plot.title = element_text( face = "bold"),
+          legend.position = "bottom") +
+    coord_cartesian(xlim=c(0, 35)) +
+    xlab("Estimated viral clearance half-life (h)") +
+    ylab("") +
+    ggtitle("A) Individual viral clearance half-life\n") +
+    annotate("text", x = 13, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1, size = 3) 
+  G
+  
+  
+}
+
 
 
 checkStrict(make_stan_inputs)

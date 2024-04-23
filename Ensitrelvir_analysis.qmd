@@ -37,6 +37,7 @@ add_epoch = T # if using non-concurrent controls
 
 my_probs = c(0.025, 0.1, .5, .9, .975)
 source('functions.R')
+source('user_settings.R')
 trt_colors = get_trt_colors()
 
 interim_version <- "v10"
