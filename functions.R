@@ -1,5 +1,48 @@
 # list of functions for plotting data
 
+assess_rebound = function(patient_dat,
+                          lower_bound=2,  # lower level such that VL is defined as non-detectable
+                          upper_bound=4,  # upper level such that VL is defined as "high"
+                          t_window=1.5,   # time window during which it has to be undetectable
+                          day_min = 4
+){
+  xx = patient_dat %>% arrange(Time) %>% distinct(Timepoint_ID, .keep_all = T)
+  rebound = virus_cleared = F
+  if(nrow(xx)>3){
+    for(i in 2:nrow(xx)){
+      ind = which(xx$Time <= xx$Time[i] & (xx$Time >= (xx$Time[i]-t_window)))
+      if(all(xx$daily_VL[ind] <= lower_bound)){
+        virus_cleared=T
+      }
+      if(virus_cleared & xx$daily_VL[i] >= upper_bound & xx$Time[i]>day_min){
+        rebound = T
+        writeLines(sprintf('patient %s treated with %s had a rebound identified on day %s', 
+                           xx$ID[1], xx$Trt[1],xx$Timepoint_ID[i]))
+      }
+      # print(rebound)
+    }
+  }
+  return(rebound)
+}
+
+find_rebounds = function(platcov_dat, 
+                         lower_bound=2,  # lower level such that VL is defined as non-detectable
+                         upper_bound=4,  # upper level such that VL is defined as "high"
+                         t_window=2      # time window during which it has to be undetectable
+){
+  platcov_dat$rebound=NA
+  for(id in unique(platcov_dat$ID)){
+    ind=platcov_dat$ID==id
+    platcov_dat$rebound[ind] = assess_rebound(platcov_dat[ind,],
+                                              lower_bound = lower_bound,
+                                              upper_bound = upper_bound,
+                                              t_window = t_window)
+  }
+  return(platcov_dat)
+}
+
+
+
 plot_effect_estimates = function(effect_ests, #list of stan outputs
                                  plot_models, # indices of models to plot in list
                                  my_pch=1,
