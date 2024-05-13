@@ -1,19 +1,24 @@
 ## Load randomisation data to get ITT database for the molnupiravir final analysis
-
+rand.TH58 <- read.csv("~/Dropbox/PLATCOV/rand-TH58.csv")[0:9, ]
+rand.TH57 <- read.csv("~/Dropbox/PLATCOV/rand-TH57.csv")[0:10, ]
+rand.TH58$ID = paste('PLT-TH58-',rand.TH58$RandomisationID,sep='')
+rand.TH57$ID = paste('PLT-TH57-',rand.TH57$RandomisationID,sep='')
 
 data.TH1 <- read.csv("~/Dropbox/PLATCOV/data-TH1.csv")
 data.TH1$Date = as.POSIXct(data.TH1$Date,format='%a %b %d %H:%M:%S %Y')
-data.TH1 = data.TH1[data.TH1$Date > '2023-03-17' & data.TH1$Date <= '2024-04-22',  ]
+data.TH1 = data.TH1#data.TH1[data.TH1$Date > '2023-03-17' & data.TH1$Date <= '2024-04-22',  ]
 
 data.LA8 <- read.csv("~/Dropbox/PLATCOV/data-LA08.csv")
 data.LA8$Date = as.POSIXct(data.LA8$Date,format='%a %b %d %H:%M:%S %Y')
-data.LA8 = data.LA8[data.LA8$Date > "2023-03-17" & data.LA8$Date <= '2024-04-22',  ]
+data.LA8 = data.LA8#data.LA8[data.LA8$Date > "2023-03-17" & data.LA8$Date <= '2024-04-22',  ]
 
 data.TH1$ID = paste('PLT-TH1-',data.TH1$randomizationID,sep='')
 data.LA8$ID = paste('PLT-LA8-',data.LA8$randomizationID,sep='')
 
 xx = rbind(data.TH1[, c('ID', 'Treatment')],
-           data.LA8[, c('ID', 'Treatment')])
+           data.LA8[, c('ID', 'Treatment')],
+           rand.TH57[,c('ID', 'Treatment')],
+           rand.TH58[,c('ID', 'Treatment')])
 
 library(stringr)
 for(i in 1:nrow(xx)){
@@ -25,5 +30,5 @@ for(i in 1:nrow(xx)){
 
 table(xx$Treatment)
 
-write.csv(x = xx, file = 'ITT_population.csv')
+write.csv(x = xx, file = 'ITT_population_all.csv')
 
