@@ -11,9 +11,7 @@ data.TH1$ID = paste('PLT-TH1-',data.TH1$randomizationID,sep='')
 data.LA8$ID = paste('PLT-LA8-',data.LA8$randomizationID,sep='')
 
 xx = rbind(data.TH1[, c('ID', 'Treatment')],
-           data.LA8[, c('ID', 'Treatment')],
-           rand.TH57[,c('ID', 'Treatment')],
-           rand.TH58[,c('ID', 'Treatment')])
+           data.LA8[, c('ID', 'Treatment')])
 
 library(stringr)
 for(i in 1:nrow(xx)){

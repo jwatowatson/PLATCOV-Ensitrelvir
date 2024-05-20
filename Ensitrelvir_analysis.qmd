@@ -219,13 +219,9 @@ ggplot(platcov_dat_rebound %>% filter(rebound == T#,
 ```
 
 ```{r}
-rebound_ID <- platcov_dat_rebound %>% filter(rebound == T) %>%
+rebound_ID <- platcov_dat_rebound %>% filter(rebound) %>%
   select(ID, Trt) %>%
   distinct() 
-
-write.csv(rebound_ID, "rebound_ID.csv", row.names = F)
-
-
 rebound_ID
 ```
 
@@ -300,13 +296,6 @@ stan_inputs =
 
 ```{r setup_models}
 all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
-
-# model_settings = rbind(expand.grid(mod = all_mods,
-#                              prior = 1,
-#                              cov_matrices = 1),
-#                        expand.grid(mod = all_mods[1],
-#                              prior = 1,
-#                              cov_matrices = 2))
 
 model_settings = expand.grid(mod = 'Stan_models/Linear_model_RNaseP.stan',
                              prior = 1,
