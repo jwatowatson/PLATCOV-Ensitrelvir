@@ -50,7 +50,8 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Paxlovid_Molnupiravir'; ref_arm = 'Nirmatrelvir'
+intervention = 'Ensitrelvir' 
+ref_arm = 'Nirmatrelvir'
 study_threshold = 0.9
 ```
 
