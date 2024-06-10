@@ -420,9 +420,9 @@ for(i in 1:nrow(effect_ests_rep)){
   writeLines(sprintf('Estimated treatment effect of %s relative to %s is %s%% [95%% CrI: %s to %s %%]', 
                      rownames(effect_ests_rep)[i],
                      ref_arm,
-                     round(effect_ests_rep[i, 3],2),
-                     round(effect_ests_rep[i, 1],2),
-                     round(effect_ests_rep[i, 5],2)
+                     round(effect_ests_rep[i, 3],1),
+                     round(effect_ests_rep[i, 1],1),
+                     round(effect_ests_rep[i, 5],1)
   )
   )
 }
