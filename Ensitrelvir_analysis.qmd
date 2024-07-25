@@ -13,6 +13,7 @@ knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
 
 ```
 
+
 ```{r setup}
 library(rstan)
 library(tidyverse)
@@ -39,8 +40,6 @@ my_probs = c(0.025, 0.1, .5, .9, .975)
 source('functions.R')
 source('user_settings.R')
 trt_colors = get_trt_colors()
-
-interim_version <- "v10"
 ```
 
 All paths are local
@@ -151,109 +150,6 @@ table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
                                           'Ensitrelvir'))
 ```
 
-## Rebounds
-
-```{r}
-platcov_dat_rebound = find_rebounds(platcov_dat =  platcov_dat %>% filter(mITT),
-                                    lower_bound = 2, 
-                                    upper_bound = 3,
-                                    t_window = 1.5)
-
-platcov_dat_rebound$clear_check <- "Less than 100"
-platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(100)] <- "More than 100"
-platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(1000)] <- "More than 1000"
-```
-
-```{r}
-platcov_dat_rebound$Timepoint_ID <- as.factor(platcov_dat_rebound$Timepoint_ID)
-
-
-library(tidyr)
-library(cluster)
-
-wide_dat <- as.data.frame(spread(unique(platcov_dat_rebound[,c("ID", "Timepoint_ID", "clear_check")]), key = Timepoint_ID, value = clear_check))
-row.names(wide_dat) <- wide_dat[,1]
-wide_dat <- wide_dat[,-1]
-
-wide_dat[sapply(wide_dat, is.character)]  <- lapply(wide_dat[sapply(wide_dat, is.character)], as.factor)
-colnames(wide_dat) <- paste0("Day_", colnames(wide_dat))
-
-# create a dissimilarity matrix 
-disimilarAdData <- daisy(wide_dat)
-
-# hierarchically cluster by dissimilarity
-clusteredAdData <- agnes(disimilarAdData)
-
-# reorder the rows by dissimilarity
-orderedAdData <- wide_dat[clusteredAdData[[1]], ]
-
-
-platcov_dat_rebound$ID <- as.factor(platcov_dat_rebound$ID)
-platcov_dat_rebound$ID <- factor(platcov_dat_rebound$ID, levels = row.names(orderedAdData))
-
-platcov_dat_rebound$Trt2 <- platcov_dat_rebound$Trt
-#levels(platcov_dat_rebound$Trt2) <- c("NSD", "ENS", "NIR")
-
-
-#png("plot.png", width = 6, height = 8, units = "in", res = 350)
-ggplot(platcov_dat_rebound %>% filter(rebound == T#, 
-                                      # Trt %in% c("Nirmatrelvir + Ritonavir",
-                                      #                          "Ensitrelvir",
-                                      #                          "Nirmatrelvir + Ritonavir + Molnupiravir")
-                                      ), 
-       aes(y = ID, x = Timepoint_ID, fill = clear_check)) +
-  geom_tile(col = "white", linewidth = 0.75) +
-  facet_grid(Trt ~ ., scales = "free", space='free') +
-  scale_fill_manual(values = rev(c("#B80000", "#F6D776", "#86A7FC")), name = "Viral loads \n(genomes per mL)") +
-  theme_bw() +
-  xlab("Time since randomisation (days)") +
-  ylab("")+
-  theme(axis.title = element_text(size = 12, face = "bold"),
-        strip.text = element_text(size = 10, face = "bold"))
-
-#dev.off()
-
-#write.csv(platcov_dat_rebound, "data_rebound_check.csv", row.names = F)
-###############################################################################
-
-```
-
-```{r}
-rebound_ID <- platcov_dat_rebound %>% filter(rebound) %>%
-  select(ID, Trt) %>%
-  distinct() 
-rebound_ID
-```
-
-```{r}
-platcov_dat_rebound_d0 <- platcov_dat_rebound %>%
-  group_by(ID) %>%
-  arrange(Time) %>%
-  filter(row_number()==1, mITT)
-
-platcov_dat_rebound_d0$Rand_date <- as.Date(platcov_dat_rebound_d0$Rand_date)
-#png("time_rebound.png", width = 10, height = 6, units = "in", res = 350)
-ggplot(platcov_dat_rebound_d0 , aes(x = Rand_date, y = Trt, col = rebound, size = rebound)) +
-  geom_point(alpha = 0.5) +
-  theme_bw() +
-  scale_color_manual(values = c("gray", "red"), guide="none") +
-  scale_size_manual(values = c(3,5), guide="none") +
-  geom_vline(xintercept = seq.Date(as.Date("2020-09-30"), as.Date("2024-01-01"), "12 months"),
-             col = "red", linetype = "dashed") +
-  scale_x_date(date_labels =  "%b %y", breaks = seq.Date(as.Date("2021-01-01"), as.Date("2024-01-01"), "4 months"))+
-  theme(axis.title = element_text(size = 15, face = "bold"),
-        strip.text = element_text(size = 15, face = "bold"),
-        axis.text = ggtext::element_markdown(size = 12),
-        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1),
-        legend.text=element_text(size=10),
-        plot.title = element_text(size = 15, face = "bold"),
-        legend.position='bottom') +
-  scale_y_discrete(drop = F) +
-  xlab("") +
-  ylab("")
-#dev.off()
-```
-
 ## Fit models
 
 ```{r}
@@ -297,7 +193,7 @@ stan_inputs =
 ```{r setup_models}
 all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
 
-model_settings = expand.grid(mod = 'Stan_models/Linear_model_RNaseP.stan',
+model_settings = expand.grid(mod = all_mods[1],
                              prior = 1,
                              cov_matrices = 1)
 
@@ -374,8 +270,6 @@ t12_output = data.frame(t_12_med = 24*log10(.5)/apply(slopes,2,mean),
                         ID_stan = analysis_data_stan$id[analysis_data_stan$ind_start])
 t12_output = merge(t12_output, stan_inputs$ID_map, by = 'ID_stan')
 
-
-
 Half_life <- t12_output
 # for(i in 1:nrow(stan_inputs$ID_map)){
 #   slopes <- rstan::extract(out, paste0("slope[", i, "]"))[[1]]
@@ -396,18 +290,6 @@ Half_life <- platcov_dat_analysis %>%
 Half_life$ID <- as.factor(Half_life$ID)
 Half_life$ID <- factor(Half_life$ID, levels = Half_life$ID)
 Half_life
-```
-
-```{r half_lives}
-G_hl <- plot_hl(Half_life, trt_colors)
-G_hl
-```
-
-## Plot treatment effects
-
-```{r treatment_effect}
-G2 <- plot_trt_effs(effect_ests = effect_ests)
-G2
 ```
 
 ## Summarize treatment effect
