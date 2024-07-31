@@ -253,8 +253,8 @@ for(i in 1:length(ff)){
 ## Plot viral dynamics
 
 ```{r viral_kinetics, fig.width=10, fig.height=8}
-G1_box <- plot_vl_box(dataplot = platcov_dat_analysis, trt_colors = trt_colors)
-G1_box
+# G1_box <- plot_vl_box(dataplot = platcov_dat_analysis, trt_colors = trt_colors)
+# G1_box
 ```
 
 ```{r}
@@ -283,16 +283,6 @@ t12_output = data.frame(t_12_med = 24*log10(.5)/apply(slopes,2,mean),
 t12_output = merge(t12_output, stan_inputs$ID_map, by = 'ID_stan')
 
 Half_life <- t12_output
-# for(i in 1:nrow(stan_inputs$ID_map)){
-#   slopes <- rstan::extract(out, paste0("slope[", i, "]"))[[1]]
-#   hl <- slope_to_hl(slopes)
-#   summary_hl <- data.frame("ID_stan" = i,
-#                            "low" = quantile(hl, 0.1),
-#                            "med" = mean(hl),
-#                            "high" = quantile(hl, 0.9))
-#   Half_life <- rbind(Half_life, summary_hl)
-# }
-# Half_life <- merge(stan_inputs$ID_map, Half_life, by = "ID_stan")
 
 Half_life <- platcov_dat_analysis %>%
   distinct(ID, Trt) %>%
@@ -362,23 +352,63 @@ platcov_dat_rebound = find_rebounds(platcov_dat = platcov_dat_rebound,
 print(unique(platcov_dat_rebound$ID[platcov_dat_rebound$rebound==1]))
 par(mfrow=c(3,1), las=1, cex.lab=1.3, cex.axis=1.3)
 platcov_dat_rebound = platcov_dat_rebound %>% filter(rebound==1)
-for(tt in unique(platcov_dat_rebound$Trt)){
-  xx = platcov_dat_rebound %>% filter(Trt==tt)
-  plot(xx$Time, xx$daily_VL, panel.first=grid(),
-       xlab='Time since randomisation (days)', ylab = 'SARS CoV2 genomes/mL',
-       ylim = range(platcov_dat$daily_VL), xlim=c(0,15),
-       col = xx$trt_color, yaxt='n')
-    axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
-                                        expression(10^4),
-                                        expression(10^6),
-                                        expression(10^8)))
-    abline(h=c(2,3), lty=2)
-  title(paste0(tt,' (n=',length(unique(xx$ID)),'/',
-               length(unique(platcov_dat_analysis$ID[platcov_dat_analysis$Trt==tt])),')'))
-  for(id in unique(xx$ID)){
-    xx_id = xx%>%filter(ID==id)
-    lines(xx_id$Time, xx_id$daily_VL, col = adjustcolor(xx_id$trt_color,alpha.f = .6))
-  }
-}
 
+# for(tt in unique(platcov_dat_rebound$Trt)){
+#   xx = platcov_dat_rebound %>% filter(Trt==tt)
+#   plot(xx$Time, xx$daily_VL, panel.first=grid(),
+#        xlab='Time since randomisation (days)', ylab = 'SARS CoV2 genomes/mL',
+#        ylim = range(platcov_dat$daily_VL), xlim=c(0,15),
+#        col = xx$trt_color, yaxt='n')
+#     axis(2, at = c(2,4,6,8), labels = c(expression(10^2),
+#                                         expression(10^4),
+#                                         expression(10^6),
+#                                         expression(10^8)))
+#     abline(h=c(2,3), lty=2)
+#   title(paste0(tt,' (n=',length(unique(xx$ID)),'/',
+#                length(unique(platcov_dat_analysis$ID[platcov_dat_analysis$Trt==tt])),')'))
+#   for(id in unique(xx$ID)){
+#     xx_id = xx%>%filter(ID==id)
+#     lines(xx_id$Time, xx_id$daily_VL, col = adjustcolor(xx_id$trt_color,alpha.f = .6))
+#   }
+# }
+
+```
+
+```{r}
+G_rebounds <-  plot_rebound(platcov_dat_analysis, platcov_dat_rebound, trt_colors)
+G_rebounds
+```
+
+```{r}
+f_name <- paste("Plots/plot_rebound.pdf")
+
+pdf(f_name, width = 6, height = 6)
+G_rebounds
+dev.off()
+```
+
+```{r}
+platcov_dat_rebound$clear_check <- "Less than 100"
+platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(100)] <- "More than 100"
+platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(1000)] <- "More than 1000"
+
+rebound_heatmap <- ggplot(platcov_dat_rebound %>% filter(rebound == T), 
+aes(y = ID, x = as.factor(Timepoint_ID), fill = clear_check)) +
+  geom_tile(col = "white", linewidth = 0.75) +
+  facet_grid(Trt ~ ., scales = "free", space='free') +
+  scale_fill_manual(values = rev(c("#B80000", "#F6D776", "#86A7FC")), name = "SARS-CoV-2 \ngenomes per mL") +
+  theme_bw() +
+  xlab("Time since randomisation (days)") +
+  ylab("")+
+  theme(axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 10, face = "bold"))
+rebound_heatmap
+```
+
+```{r}
+f_name <- paste("Plots/plot_rebound_heatmap.pdf")
+
+pdf(f_name, width = 6, height = 8)
+rebound_heatmap
+dev.off()
 ```

@@ -1,0 +1,219 @@
+---
+title: "Symptom analysis PLATCOV"
+author: "James Watson and Phrutsamon Wongnak"
+format: pdf
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(lubridate)
+library(stringr)
+
+source("functions.R")
+```
+
+## Setup the analysis
+
+```{r}
+intervention = 'Ensitrelvir'; 
+ref_arm = 'Nirmatrelvir'
+
+window_clear <- 1
+```
+
+```{r}
+platcov_dat = read.csv(paste0('Analysis_Data/',intervention,'_analysis.csv'))
+platcov_dat = platcov_dat %>% group_by(ID) %>%
+  mutate(
+    mITT = any(Per_protocol_sample==1 & Timepoint_ID>=3) &
+      !all(CT_NS==40))
+
+platcov_dat <- platcov_dat %>% distinct(ID, .keep_all = T)
+
+sympt_dat <- read.csv(paste0('Analysis_Data/', intervention,'_symptom_data.csv'))
+sympt_dat <- merge(sympt_dat, platcov_dat[,c("ID","Trt", "Rand_date", "mITT")], by.x = "Label", by.y = "ID")
+sympt_dat <- sympt_dat %>% filter(mITT)
+
+IDs <- unique(sympt_dat$Label)
+```
+
+```{r}
+sympt_dat_for_plot <- sympt_dat
+
+sympt_dat_for_plot <- sympt_dat_for_plot[!is.na(sympt_dat_for_plot$sq_yn),]
+sympt_dat_for_plot$sq_yn <- as.logical(sympt_dat_for_plot$sq_yn)
+
+sympt_dat_for_plot$clearance_time = NA
+# For interval censored data, the status indicator is 0=right censored, 1=event at time, 2=left censored, 3=interval censored. 
+sympt_dat_for_plot$clearance_time_cens = 1
+
+sympt_dat_for_plot$Label2 <- as.numeric(as.factor(sympt_dat_for_plot$Label))
+############################################################################################
+never_list <- NULL
+
+for(id in 1:length(unique(sympt_dat_for_plot$Label2))){
+  ind = sympt_dat_for_plot$Label2==id
+  
+  if(all(!sympt_dat_for_plot$sq_yn[ind])){ # never symptoms
+    sympt_dat_for_plot$clearance_time[ind]=0
+    never_list <- c(never_list, id)
+  } else if(all(sympt_dat_for_plot$sq_yn[ind])){ # always symptoms
+    writeLines(sprintf('all symptoms for %s with %s FUP points',id,sum(ind)))
+    sympt_dat_for_plot$clearance_time[ind] = max(sympt_dat_for_plot$Timepoint_ID[ind])
+    sympt_dat_for_plot$clearance_time_cens[ind] = 0 #censored obs
+  } else { # symptoms cleared
+    j_cleared = which(ind & !sympt_dat_for_plot$sq_yn)
+    check_ahead=F
+    for(j in j_cleared){
+      if(!check_ahead){
+        ind_check = 
+          which(ind & 
+                  sympt_dat_for_plot$Timepoint_ID>sympt_dat_for_plot$Timepoint_ID[j] &
+                  sympt_dat_for_plot$Timepoint_ID<=sympt_dat_for_plot$Timepoint_ID[j+1])
+        if(length(ind_check)>0 & all(!sympt_dat_for_plot$sq_yn[ind_check])){
+          sympt_dat_for_plot$clearance_time[ind]=sympt_dat_for_plot$Timepoint_ID[j]
+          check_ahead=T
+        }
+      }
+    }
+    if(!check_ahead){
+      sympt_dat_for_plot$clearance_time[ind]=tail(sympt_dat_for_plot$Timepoint_ID[ind],1)
+      sympt_dat_for_plot$clearance_time_cens[ind]=0
+    }
+  }
+}
+```
+
+```{r}
+sympt_dat_for_plot2 <- sympt_dat_for_plot#[sympt_dat_for_plot$symptoms_Baseline == 1, ]
+sympt_dat_for_plot2 <- sympt_dat_for_plot2 %>%
+  group_by(Label) %>%
+  filter(Timepoint_ID == 0)
+
+fit <- survfit(Surv(clearance_time, clearance_time_cens) ~ Trt, data = sympt_dat_for_plot2) 
+diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = sympt_dat_for_plot2) 
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+round(prop.table(table(sympt_dat_for_plot2$Trt, sympt_dat_for_plot2$clearance_time), margin=1),2)
+
+round(prop.table(table(sympt_dat_for_plot2$Trt, sympt_dat_for_plot2$clearance_time_cens), margin=1),2)
+
+((table(sympt_dat_for_plot2$clearance_time_cens)))
+round(prop.table(table(sympt_dat_for_plot2$clearance_time_cens)),2)
+```
+
+```{r}
+trt_colors = get_trt_colors()
+lab <- intervention
+cols <- trt_colors[c(lab, ref_arm, "No study drug")]
+cols <- as.character(cols)
+```
+
+```{r}
+survplot <- survminer::ggsurvplot(fit,pval=T,
+                                  risk.table = T,
+                                  risk.table.y.text=F,
+                                  palette = cols,
+                                  ggtheme = theme_bw(),
+                                  legend.labs = c(lab, 
+                                                  ref_arm,
+                                                  "No study drug"),
+                                  break.time.by = 4,
+                                  pval.size = 4,
+                                  pval.coord = c(25,0.9),
+                                  size = 1.2,
+                                  alpha = 0.7) 
+survplot$plot <- survplot$plot + 
+  geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
+  xlab("Symptom clearance time (days)") +
+  ylab("Proportion of patients with symptoms") +
+  theme(axis.text=element_text(size=8),
+        axis.title=element_text(size=13,face="bold",),
+        strip.text = element_text(size = 10, face = "bold"),
+  )
+
+
+print(survplot, newpage=F)
+```
+
+```{r}
+fname <- paste0("Plots/", intervention, "symptom_surv_plot.pdf")
+
+pdf(fname, width = 6, height = 6)
+print(survplot, newpage=F)
+dev.off()
+```
+
+## Bitter taste
+
+```{r}
+other_symptom_library <- read.csv("Analysis_Data/other_symptoms_ensitrelvir_v2.0_EB.csv")
+
+col_others <- colnames(sympt_dat)[grepl('^sq.*des$', colnames(sympt_dat))]
+
+bitter_taste_check <- NULL
+for(i in 1:length(col_others)){
+ bitter_taste_check_i <- sympt_dat[,col_others[i]] %in% other_symptom_library$sq_th_des[other_symptom_library$sx_group_code == "sxo2"] %>% as.numeric()
+  
+  bitter_taste_check <- cbind(bitter_taste_check, bitter_taste_check_i)
+  
+}
+sympt_dat$sxo2 <- rowSums(bitter_taste_check)
+```
+
+```{r}
+
+bitter_dat <- sympt_dat %>%
+  group_by(ID) %>%
+  summarise(n_day_bitter = sum(sxo2),
+            Trt = unique(Trt))
+bitter_dat$bitter_yn <- "No"
+bitter_dat$bitter_yn[bitter_dat$n_day_bitter > 1] <- "Yes" 
+
+table(bitter_dat$Trt, bitter_dat$bitter_yn, useNA = "ifany")
+
+```
+
+```{r}
+sympt_dat_plot_bitter <-sympt_dat %>% filter(ID %in% bitter_dat$ID[bitter_dat$bitter_yn == "Yes"])
+
+sympt_dat_plot_bitter
+
+sympt_dat_plot_bitter$Trt <- as.factor(sympt_dat_plot_bitter$Trt)
+levels(sympt_dat_plot_bitter$Trt) <- c("ENS", "NIR", "NSD")
+
+bitter_plot <- ggplot(sympt_dat_plot_bitter, 
+       aes(x = as.factor(Timepoint_ID), y = ID, fill = as.factor(sxo2))) +
+  geom_tile(col = "white", linewidth = 0.75) +
+  theme_bw() +
+  scale_fill_manual(values = c("#FFDE4D", "#E4003A"), name = "Experiencing \nbitter taste",
+                    labels = c("No", "Yes")) +
+  facet_grid(Trt~., scales = "free", space = "free") +
+  xlab("Time since randomisation (days)") +
+  ylab("")+
+  theme(axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 8, face = "bold"))
+bitter_plot
+```
+
+```{r}
+fname <- paste0("Plots/", intervention, "bitter_plot.pdf")
+
+pdf(fname, width =6, height = 9)
+bitter_plot
+dev.off()
+```

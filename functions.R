@@ -891,6 +891,90 @@ plot_hl <- function(Half_life, trt_colors){
   
 }
 
+plot_rebound <- function(platcov_dat_analysis, platcov_dat_rebound, trt_colors){
+  
+  lab <- platcov_dat_analysis %>%
+    distinct(ID, .keep_all = T) %>%
+    group_by(Trt) %>%
+    summarise(n = n()) 
+  
+  lab$n_rbound <- platcov_dat_rebound %>%
+    distinct(ID, .keep_all = T) %>%
+    group_by(Trt) %>%
+    summarise(n = n()) %>%
+    pull(n)
+  
+  lab$lab <- paste0(lab$Trt, " (n=", lab$n_rbound, "/", lab$n, ")")
+  
+  lab_labeller <- function(variable,value){
+    return(lab$lab[value])
+  }
+  
+  ggplot(platcov_dat_rebound, aes(x = Time, y = daily_VL)) +
+    geom_point(shape = 21, aes(group = ID, col = Trt)) +
+    geom_line(alpha = 0.5,  aes(group = ID, col = Trt)) +
+    facet_wrap(Trt~., ncol = 1,
+               labeller  = lab_labeller) +
+    theme_bw(base_size = 13)+
+    scale_color_manual(values = trt_colors) +
+    xlim(0,15) +
+    geom_hline(yintercept = c(2,3), linetype = "dashed", linewidth = 0.4, alpha = 0.75) +
+    scale_y_continuous(labels=label_math(), breaks = seq(0,8,2), limits = c(0,8)) +
+    scale_x_continuous(limits = c(0,15), breaks = seq(0,15,3)) +
+    xlab('Time since randomisation (days)') +
+    ylab('SARS-CoV-2 genomes/mL') +
+    theme(axis.title = element_text(face = "bold"),
+          strip.text = element_text(face = "bold"),
+          legend.position = "none",
+          panel.spacing = unit(1, "lines")) 
+  
+  
+}
+
+cal_fever_clearance <- function(temp_dat_for_plot, threshold, window_clear){
+  temp_dat_for_plot$fever_binary <- temp_dat_for_plot$fut_temp > threshold
+  
+  temp_dat_for_plot$Label2 <- as.numeric(as.factor(temp_dat_for_plot$Label))
+  IDs_inc <- unique(temp_dat_for_plot$Label2)
+  temp_dat_for_plot$temp_time <- as.POSIXlt(temp_dat_for_plot$temp_time)
+  
+  temp_dat_for_plot$clearance_time = NA
+  # For interval censored data, the status indicator is 0=right censored, 1=event at time, 2=left censored, 3=interval censored. 
+  temp_dat_for_plot$clearance_time_cens = 1
+  ############################################################################################
+  for(id in IDs_inc){
+    ind = temp_dat_for_plot$Label2==id
+    
+    if(all(!temp_dat_for_plot$fever_binary[ind])){ # never fever
+      temp_dat_for_plot$clearance_time[ind]=0
+    } else if(all(temp_dat_for_plot$fever_binary[ind])){ # always fever
+      writeLines(sprintf('all fever for %s with %s FUP points',id,sum(ind)))
+      temp_dat_for_plot$clearance_time[ind] = max(temp_dat_for_plot$Time_adj[ind])
+      temp_dat_for_plot$clearance_time_cens[ind] = 0 #censored obs
+    } else { # fever cleared
+      j_cleared = which(ind & !temp_dat_for_plot$fever_binary)
+      check_ahead=F
+      for(j in j_cleared){
+        if(!check_ahead){
+          ind_check = 
+            which(ind & 
+                    temp_dat_for_plot$Time_adj>temp_dat_for_plot$Time_adj[j] &
+                    temp_dat_for_plot$Time_adj<temp_dat_for_plot$Time_adj[j] + window_clear)
+          if(length(ind_check)>0 & all(!temp_dat_for_plot$fever_binary[ind_check])){
+            temp_dat_for_plot$clearance_time[ind]=temp_dat_for_plot$Time_adj[j]
+            check_ahead=T
+          }
+        }
+      }
+      if(!check_ahead){
+        temp_dat_for_plot$clearance_time[ind]=tail(temp_dat_for_plot$Time_adj[ind],1)
+        temp_dat_for_plot$clearance_time_cens[ind]=0
+      }
+    }
+  }
+  
+  temp_dat_for_plot
+}
 
 
 checkStrict(make_stan_inputs)

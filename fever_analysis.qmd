@@ -1,0 +1,138 @@
+---
+title: "Temperature analysis PLATCOV"
+author: "James Watson and Phrutsamon Wongnak"
+format: pdf
+editor: visual
+---
+
+```{r}
+knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
+                      echo = F, include = TRUE, 
+                      fig.width = 8, fig.height = 8,
+                      fig.pos = 'H',dev = 'png', dpi = 300)
+
+```
+
+```{r}
+library(dplyr)
+library(survival)
+library(survminer)
+library(lubridate)
+library(stringr)
+
+source("functions.R")
+```
+
+## Setup the analysis
+
+```{r}
+intervention = 'Ensitrelvir'; 
+ref_arm = 'Nirmatrelvir'
+
+threshold <- 37
+window_clear <- 1
+```
+
+## Import data
+
+```{r}
+platcov_dat = read.csv(paste0('Analysis_Data/',intervention,'_analysis.csv'))
+platcov_dat <- platcov_dat %>% distinct(ID, .keep_all = T)
+
+
+temp_dat <- read.csv(paste0('Analysis_Data/', intervention,'_fever_data.csv'))
+temp_dat$temp_time <-  as.POSIXlt(temp_dat$temp_time, format = "%Y-%m-%d %H:%M:%OS")
+temp_dat <- temp_dat[temp_dat$Timepoint_ID <= 8,]
+
+temp_dat <- merge(temp_dat, platcov_dat[,c("ID", "Trt", "Rand_date")], by.x = "Label", by.y = "ID")
+IDs <- unique(temp_dat$Label)
+
+#manual imputation
+ind_missing <- c(which(is.na(temp_dat$temp_time)))
+if(length(ind_missing) >0){temp_dat$temp_time[ind_missing] <- paste0(temp_dat$fut_dat[ind_missing], "10:00:00")}
+```
+
+```{r}
+temp_dat_for_plot <- temp_dat
+temp_dat_new <- NULL
+
+for(i in 1:length(IDs)){
+  subdat <- temp_dat_for_plot[temp_dat_for_plot$Label == IDs[i],]
+  if(nrow(subdat) == 0) next
+  
+  subdat$Time_adj <- as.numeric(difftime(subdat$temp_time , min(subdat$temp_time), unit = "days"))
+
+  subdat <- subdat[order(subdat$Time_adj),]
+  subdat <- subdat %>%
+                   group_by(Timepoint_ID) %>%
+                   mutate("temp_mean" = mean(fut_temp))
+  temp_dat_new <- rbind(temp_dat_new, subdat)
+}
+```
+
+## Calculating fever clearance time
+
+```{r}
+temp_dat_for_plot <- temp_dat_new
+temp_dat_for_plot <- cal_fever_clearance(temp_dat_for_plot, threshold, window_clear)
+```
+
+```{r}
+temp_dat_for_plot2 <- temp_dat_for_plot[temp_dat_for_plot$Fever_Baseline == 1, ]
+temp_dat_for_plot2 <- temp_dat_for_plot2 %>%
+  group_by(Label) %>%
+  filter(row_number()==1)
+```
+
+```{r}
+fit <- survfit(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
+diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+## Kaplan-Meier plot
+
+```{r}
+trt_colors = get_trt_colors()
+lab <- intervention
+cols <- trt_colors[c(lab, ref_arm, "No study drug")]
+cols <- as.character(cols)
+```
+
+```{r}
+survplot <- survminer::ggsurvplot(fit,pval=T,
+                                  risk.table = T,
+                                  risk.table.y.text=F,
+                                  palette = cols,
+                                  ggtheme = theme_bw(),
+                                  legend.labs = c(lab, 
+                                                  ref_arm,
+                                                  "No study drug"),
+                                  break.time.by = 1,
+                                  pval.size = 4,
+                                  pval.coord = c(5,0.9),
+                                  size = 1.5,
+                                  alpha = 0.7,
+                                  xlim = c(0,7)) 
+survplot$plot <- survplot$plot + 
+  geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
+  xlab("Fever clearance time (days)") +
+  ylab("Proportion of patients with fever") +
+  theme(axis.text=element_text(size=8),
+        axis.title=element_text(size=13,face="bold",),
+        strip.text = element_text(size = 10, face = "bold"),
+         plot.title = element_text(size = 15, face = "bold")
+  ) 
+
+
+survplot
+```
+
+```{r}
+fname <- paste0("Plots/", intervention, "Temp_surv_plot.pdf")
+
+pdf(fname, width = 6, height = 6)
+print(survplot, newpage = F)
+dev.off()
+```
