@@ -722,29 +722,28 @@ plot_vl <- function(dataplot, trt_colors){
     summarise(n = n()) %>%
     as.data.frame()
   
-  f_tab$lab <- paste0(f_tab$Trt, ": ", f_tab$n)
+  f_tab$lab <- paste0(f_tab$Trt, ": n=", f_tab$n)
   f_text <- paste(f_tab$lab, collapse = '\n')
   
   
   G <- ggplot(dataplot, aes(x = Timepoint_ID, y = log10_viral_load, col = Trt)) +
-    geom_jitter(width = 0.15, alpha = 0.4, size = 1.75, aes(shape = censor) ) +
+    geom_jitter(width = 0.2, alpha = 0.25, size = 1.5, aes(shape = censor, fill = Trt)) +
     geom_line(data = dataplot_median, aes(x =  Timepoint_ID, y = median_VL, group = Trt, col = Trt), linewidth = 1, linetype = 1) +
     geom_point(data = dataplot_median, aes(x = Timepoint_ID, y = median_VL, fill = Trt)
-               , size = 3.5, shape = 24, col = "black") +
+               , size = 4.5, shape = 24, col = "black") +
     scale_shape_manual(values = c(25, 21), guide = NULL) +
     scale_color_manual(label = labels, values = colors, name = "") +
     scale_fill_manual(label = labels, values = colors, name = "") +
     annotate("text", x = 2.5, y = 9, label = f_text, hjust = 0, vjust = 1)  +
-    theme_bw() +
+    theme_bw(base_size = 12) +
     scale_x_continuous(breaks = 0:14) +
     scale_y_continuous(labels=label_math(), breaks = seq(0,10,2), limits = c(0,9)) +
     xlab("Time since randomisation (days)") +
     ylab("SARS-CoV-2 genomes/mL") + 
     theme(axis.title  = element_text(face = "bold"),
           plot.title = element_text(face = "bold"),
-          legend.position = "bottom",
-          axis.text = element_text(size = 10)) +
-    ggtitle("\nA) Viral load dynamics")
+          legend.position = "bottom") +
+    ggtitle("Viral density dynamics")
   
   G
 }
@@ -830,7 +829,7 @@ plot_trt_effs <- function(effect_ests){
     geom_errorbar(aes(x = arm, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5, col =  model_cols) +
     geom_rect(aes(ymin = min(0.75, min(effect_ests_plot$L95)-0.05), ymax = study_threshold, xmin = 0, xmax = length(my.labs)+1), fill = "#7D7C7C", alpha = 0.2, col = NA) +
     coord_flip() +
-    theme_bw() +
+    theme_bw(base_size = 11) +
     geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
     scale_y_continuous(labels = formatter, limits = c(min(0.75, min(effect_ests_plot$L95)-0.05), max(effect_ests_plot$U95) + .25), expand = c(0,0),
                        breaks = seq(0.2,3.6, 0.2)) +
@@ -840,8 +839,7 @@ plot_trt_effs <- function(effect_ests){
     ggtitle(title)  + 
     theme(axis.title  = element_text(face = "bold"),
           plot.title = element_text(face = "bold"),
-          legend.position = "bottom",
-          axis.text = element_text(size = 10))
+          legend.position = "bottom")
   G
 }
 
@@ -865,29 +863,29 @@ plot_hl <- function(Half_life, trt_colors){
     as.data.frame()
   f_tab$med_hl <- Half_life_med$med_hl
   
-  f_tab$lab <- paste0(f_tab$Trt,": n = ", f_tab$n, "; t_1/2 = ", round(f_tab$med_hl,1), " h")
+  f_tab$lab <- paste0(f_tab$Trt,": n = ", f_tab$n, "; half-life = ", round(f_tab$med_hl,1), " h")
   freq_lab <- paste(f_tab$lab, collapse = '\n')
   
   
   G <- ggplot(Half_life, aes(x = t_12_med, y = ID, col = Trt)) +
-    geom_errorbar(aes(xmin = t_12_low, xmax = t_12_up),width = 0, alpha = 0.4) +
-    geom_point(size = 2) +
+    geom_errorbar(aes(xmin = t_12_low, xmax = t_12_up),width = 0, alpha = 0.2) +
+    geom_point(size = 1.25, alpha = 0.75) +
     geom_vline(data = Half_life_med, aes(xintercept = med_hl, col = Trt),linewidth = 1) +
-    theme_bw() +  
+    theme_bw(base_size = 11) +  
     scale_y_discrete(expand = c(0.01,0.01), breaks = NULL) +
     scale_color_manual(label = labels, values = colors, name = "") +
     scale_x_continuous(breaks = seq(0,40,5), expand = c(0,0)) +
     guides(color = guide_legend(override.aes=list(linetype = rep(0, length(unique(Half_life$Trt)))))) +
     theme(axis.text.y = element_blank(),
           axis.ticks = element_blank(),
-          axis.title = element_text(size = 12, face = "bold"),
+          axis.title = element_text(face = "bold"),
           plot.title = element_text( face = "bold"),
           legend.position = "bottom") +
     coord_cartesian(xlim=c(0, 35)) +
     xlab("Estimated viral clearance half-life (h)") +
-    ylab("") +
+    ylab("Individual patients") +
     ggtitle("A) Individual viral clearance half-life\n") +
-    annotate("text", x = 13, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1, size = 3) 
+    annotate("text", x = 13, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1) 
   G
   
   

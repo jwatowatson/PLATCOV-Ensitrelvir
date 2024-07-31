@@ -13,7 +13,6 @@ knitr::opts_chunk$set(cache = T, cache.comments = FALSE,
 
 ```
 
-
 ```{r setup}
 library(rstan)
 library(tidyverse)
@@ -258,6 +257,19 @@ G1_box <- plot_vl_box(dataplot = platcov_dat_analysis, trt_colors = trt_colors)
 G1_box
 ```
 
+```{r}
+G1_vl <- plot_vl(dataplot = platcov_dat_analysis, trt_colors)
+G1_vl
+```
+
+```{r}
+f_name <- paste("Plots/viral_dynamics.pdf")
+
+pdf(f_name, width = 6, height = 6)
+G1_vl
+dev.off()
+```
+
 ## Plot half-life
 
 ```{r}
@@ -290,6 +302,24 @@ Half_life <- platcov_dat_analysis %>%
 Half_life$ID <- as.factor(Half_life$ID)
 Half_life$ID <- factor(Half_life$ID, levels = Half_life$ID)
 Half_life
+```
+
+```{r}
+G2_hl <- plot_hl(Half_life, trt_colors)
+G2_hl
+```
+
+```{r}
+G3_trt_effect <- plot_trt_effs(effect_ests)
+G3_trt_effect
+```
+
+```{r}
+f_name <- paste("Plots/hl_trt_eff.pdf")
+
+pdf(f_name, width = 10, height = 5)
+plot_grid(G2_hl, G3_trt_effect, ncol = 2, nrow = 1, align = "h", axis = "bt")
+dev.off()
 ```
 
 ## Summarize treatment effect
