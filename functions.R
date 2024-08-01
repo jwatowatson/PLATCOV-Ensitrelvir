@@ -2,7 +2,7 @@
 
 assess_rebound = function(patient_dat,
                           lower_bound=2,  # lower level such that VL is defined as non-detectable
-                          upper_bound=4,  # upper level such that VL is defined as "high"
+                          upper_bound=3,  # upper level such that VL is defined as "high"
                           t_window=1.5,   # time window during which it has to be undetectable
                           day_min = 4
 ){
@@ -14,7 +14,8 @@ assess_rebound = function(patient_dat,
       if(all(xx$daily_VL[ind] <= lower_bound)){
         virus_cleared=T
       }
-      if(virus_cleared & xx$daily_VL[i] >= upper_bound & xx$Time[i]>day_min){
+      #print(virus_cleared)
+      if(virus_cleared & xx$daily_VL[i] >= upper_bound & xx$Time[i]>day_min & xx$daily_VL[i-1] < upper_bound){
         rebound = T
         writeLines(sprintf('patient %s treated with %s had a rebound identified on day %s', 
                            xx$ID[1], xx$Trt[1],xx$Timepoint_ID[i]))
@@ -816,6 +817,10 @@ plot_trt_effs <- function(effect_ests){
   #Labeling reference arm
   lab_ref <- ref_arm
   lab_ref[lab_ref == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+  
+  effect_ests_plot <- effect_ests_plot[order(effect_ests_plot$med),]
+  effect_ests_plot$arm <- factor(effect_ests_plot$arm, levels = effect_ests_plot$arm)
+  levels(effect_ests_plot$arm)[effect_ests_plot$arm == "Nirmatrelvir"] <- "Ritonavir-boosted\nnirmatrelvir"
   #Labeling intervention arm
   my.labs <- levels(effect_ests_plot$arm)
   my.labs[my.labs == "Nirmatrelvir+Molnupiravir"] <- "Nirmatrelvir +\nMolnupiravir"
@@ -824,10 +829,10 @@ plot_trt_effs <- function(effect_ests){
   
   G <- ggplot(effect_ests_plot, 
          aes(x = arm, y = med)) +
+    geom_rect(aes(ymin = min(0.75, min(effect_ests_plot$L95)-0.05), ymax = study_threshold, xmin = 0, xmax = length(my.labs)+1), fill = "#7D7C7C", alpha = 0.08, col = NA) +
     geom_point(position = position_dodge(width = 0.5), size = 4, col =  model_cols) +
     geom_errorbar(aes(x = arm, ymin = L95, ymax = U95),position = position_dodge(width = 0.5), width = 0, linewidth = 0.65, col =  model_cols) +
     geom_errorbar(aes(x = arm, ymin = L80, ymax = U80),position = position_dodge(width = 0.5), width = 0, linewidth = 1.5, col =  model_cols) +
-    geom_rect(aes(ymin = min(0.75, min(effect_ests_plot$L95)-0.05), ymax = study_threshold, xmin = 0, xmax = length(my.labs)+1), fill = "#7D7C7C", alpha = 0.2, col = NA) +
     coord_flip() +
     theme_bw(base_size = 11) +
     geom_hline(yintercept = 1, col = "red", linetype = "dashed") +
