@@ -168,31 +168,24 @@ col_others <- colnames(sympt_dat)[grepl('^sq.*des$', colnames(sympt_dat))]
 bitter_taste_check <- NULL
 for(i in 1:length(col_others)){
  bitter_taste_check_i <- sympt_dat[,col_others[i]] %in% other_symptom_library$sq_th_des[other_symptom_library$sx_group_code == "sxo2"] %>% as.numeric()
-  
   bitter_taste_check <- cbind(bitter_taste_check, bitter_taste_check_i)
-  
 }
 sympt_dat$sxo2 <- rowSums(bitter_taste_check)
 ```
 
 ```{r}
-
 bitter_dat <- sympt_dat %>%
   group_by(ID) %>%
   summarise(n_day_bitter = sum(sxo2),
             Trt = unique(Trt))
 bitter_dat$bitter_yn <- "No"
 bitter_dat$bitter_yn[bitter_dat$n_day_bitter > 1] <- "Yes" 
-
 table(bitter_dat$Trt, bitter_dat$bitter_yn, useNA = "ifany")
-
 ```
 
 ```{r}
 sympt_dat_plot_bitter <-sympt_dat %>% filter(ID %in% bitter_dat$ID[bitter_dat$bitter_yn == "Yes"])
-
 sympt_dat_plot_bitter
-
 sympt_dat_plot_bitter$Trt <- as.factor(sympt_dat_plot_bitter$Trt)
 levels(sympt_dat_plot_bitter$Trt) <- c("ENS", "NIR", "NSD")
 
@@ -215,5 +208,48 @@ fname <- paste0("Plots/", intervention, "bitter_plot.pdf")
 
 pdf(fname, width =6, height = 9)
 bitter_plot
+dev.off()
+```
+
+## Diarrhea
+
+```{r}
+sympt_dat$sq_diaryn[is.na(sympt_dat$sq_diaryn)] <- 0
+diarrhea_dat <- sympt_dat %>%
+  group_by(ID) %>%
+  summarise(n_day_bitter = sum(sq_diaryn),
+            Trt = unique(Trt))
+
+diarrhea_dat$yn <- "No"
+diarrhea_dat$yn[diarrhea_dat$n_day_bitter > 1] <- "Yes" 
+table(diarrhea_dat$Trt, diarrhea_dat$yn, useNA = "ifany")
+```
+
+```{r}
+sympt_dat_plot_diarr <-sympt_dat %>% filter(ID %in% diarrhea_dat$ID[diarrhea_dat$yn == "Yes"])
+sympt_dat_plot_diarr$sq_diargr[is.na(sympt_dat_plot_diarr$sq_diargr)] <- 0
+
+sympt_dat_plot_diarr$Trt <- as.factor(sympt_dat_plot_diarr$Trt)
+levels(sympt_dat_plot_diarr$Trt) <- c("ENS", "NIR", "NSD")
+
+diarr_plot <- ggplot(sympt_dat_plot_diarr, 
+       aes(x = as.factor(Timepoint_ID), y = ID, fill = as.factor(sq_diargr))) +
+  geom_tile(col = "white", linewidth = 0.75) +
+  theme_bw() +
+  scale_fill_manual(values = c("#FFDE4D", "#E4003A"), name = "Diarrhea",
+                    labels = c("No", "Yes")) +
+  facet_grid(Trt~., scales = "free", space = "free") +
+  xlab("Time since randomisation (days)") +
+  ylab("")+
+  theme(axis.title = element_text(size = 12, face = "bold"),
+        strip.text = element_text(size = 8, face = "bold"))
+diarr_plot
+```
+
+```{r}
+fname <- paste0("Plots/", intervention, "diarr_plot.pdf")
+
+pdf(fname, width =6, height = 6)
+diarr_plot
 dev.off()
 ```
