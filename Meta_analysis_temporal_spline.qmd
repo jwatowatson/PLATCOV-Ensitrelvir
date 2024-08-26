@@ -48,15 +48,15 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Ensitrelvir' 
-ref_arm = 'Nirmatrelvir'
-study_threshold = 0.9
+intervention = 'Unblinded_all' 
+ref_arm = 'No study drug'
+study_threshold = 1.2
 ```
 
 ```{r define_population}
 #| echo: false
 # set as file with relevant dataset
-itt_population_all = read_csv('ITT_population_all.csv')
+itt_population_all = get_itt_population(prefix_drop_rand = prefix_drop_rand)
 
 f_name = paste0('Analysis_Data/',intervention,'_analysis.csv')
 platcov_dat = read.csv(f_name)
@@ -94,7 +94,10 @@ table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 ```{r baseline}
 #| echo: false
 platcov_dat = platcov_dat %>% group_by(ID, Timepoint_ID) %>%
-  mutate(daily_VL = mean(log10_viral_load),
+  mutate(Study_time = as.numeric(difftime(Rand_date,min(Rand_date),units = 'weeks')),
+        Study_time_normal = Study_time,
+         Study_time = scale(Study_time),
+         daily_VL = mean(log10_viral_load),
          daily_CT = mean(CT_NS)) %>% 
   ungroup() %>%
   mutate(Sex = as.factor(ifelse(Sex==1,'Male','Female')),
@@ -138,68 +141,75 @@ tab.ff
 # save_kable(tab.ff,file = 'Baseline_characteristics.png')
 ```
 
-```{r}
-platcov_PCR_status = platcov_dat %>% 
-  distinct(ID, Timepoint_ID, .keep_all = T) %>%
-  arrange(ID, Time)
-table(Baseline_data$mITT)
-table(platcov_PCR_status$Timepoint_ID)
-table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
-                                          'No study drug',
-                                          'Ensitrelvir'))
-```
-
 ## Fit models
 
 ```{r}
 #| echo: false
 source('priors.R')
 
+covs_base = c('Site') #'Study_time'
+covs_full=c(covs_base, 'Age_scaled','Symptom_onset','N_dose','Sex')
+
 # Analysis data
-platcov_dat_analysis = 
+platcov_dat_analysis_list = list()
+stan_inputs = list()
+i<-1
+
+  platcov_dat_analysis_list[[i]] = 
   platcov_dat %>% ungroup() %>%
-  filter(Time <= Dmax, mITT, Timepoint_ID < ceiling(Dmax)) %>%
+  filter(mITT, Time <= Dmax) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
-         Epoch = paste(month(Rand_date), year(Rand_date), sep = '_'),
          Site = as.factor(Site),
          RnaseP_scaled = scale(40 - CT_RNaseP,scale = F),
          Mean_age = mean(Age[!duplicated(ID)]),
          SD_age = sd(Age[!duplicated(ID)]),
          Age_scaled = (Age-Mean_age)/SD_age,
          Symptom_onset = ifelse(is.na(Symptom_onset),2,Symptom_onset)) 
+  
+writeLines(sprintf('Analysis dataset for follow-up duration of %s days contains %s patients and %s datapoints (%s above LLOD, %s%%)',
+                   max(floor(platcov_dat_analysis_list[[i]]$Time)),
+                   length(unique(platcov_dat_analysis_list[[i]]$ID)),
+                   nrow(platcov_dat_analysis_list[[i]]),
+                   sum(platcov_dat_analysis_list[[i]]$CT_NS<40),
+                   round(100*mean(platcov_dat_analysis_list[[i]]$CT_NS<40))))
 
-
-writeLines(sprintf('Analysis dataset contains %s patients and %s datapoints (%s above LLOD, %s%%)',
-                   length(unique(platcov_dat_analysis$ID)),
-                   nrow(platcov_dat_analysis),
-                   sum(platcov_dat_analysis$CT_NS<40),
-                   round(100*mean(platcov_dat_analysis$CT_NS<40))))
-
-covs_base = c('Site','Study_time')
-covs_full=c(covs_base, 'Age_scaled','Symptom_onset')
-stan_inputs = 
-  make_stan_inputs(input_data_fit = platcov_dat_analysis,
-                   int_covs_base = c(covs_base,'Symptom_onset'),
+stan_inputs[[i]] = 
+  make_stan_inputs(input_data_fit = platcov_dat_analysis_list[[i]],
+                   int_covs_base = covs_base,
                    int_covs_full = covs_full,
                    slope_covs_base = covs_base,
                    slope_covs_full = covs_full,
-                   trt_frmla = formula('~ Trt'),
-                   epoch = add_epoch,
+                   trt_frmla = formula('~ Trt'), #'~ Trt'
                    Dmax = Dmax)
+  
+
 ```
 
 ```{r setup_models}
-all_mods = list.files('Stan_models',full.names = TRUE,pattern = '*stan')
+all_mods = c("Stan_models/Temporal_spline_proportional.stan")#,
+             #"Stan_models/Temporal_spline_additive.stan")
 
-model_settings = expand.grid(mod = all_mods[1],
+model_settings = expand.grid(mod = all_mods,
                              prior = 1,
-                             cov_matrices = 1)
+                             cov_matrices = 1, 
+                            # dataset = 1:2,
+                             Dmax = Dmax,
+                             num_knots_alpha = 20,
+                             spline_degree_alpha = 4,
+                             num_knots_beta = 20,
+                             spline_degree_beta = 4)
 
-model_settings$Niter = 2000
-model_settings$Nwarmup = 1000
+model_settings$dataset <- 1
+#model_settings$dataset[model_settings$Dmax == Dmax[2]] <- 2
+
+
+model_settings$Niter = 4000
+model_settings$Nwarmup = 2000
 model_settings$Nthin = 4
 model_settings$Nchain = 4
+
+model_settings$intervention <- intervention
 
 writeLines(sprintf('We are running all models with %s chains and %s samples for each chain, discarding %s for burn-in and thining every %s, thus giving a total of %s posterior samples per model.',
                    unique(model_settings$Nchain),
@@ -210,7 +220,7 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
 
 model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
 save(model_settings, 
-     platcov_dat_analysis,
+     platcov_dat_analysis_list,
      stan_inputs, 
      all_priors,
      file = model_setup_f_name)
@@ -218,7 +228,7 @@ save(model_settings,
 
 ```{r}
 if(RUN_MODELS){
-  system(paste('Rscript --vanilla run_models_local.R',intervention))
+  system(paste('Rscript --vanilla 01_run_local_temporal_splines_analysis.R',intervention))
 }
 ```
 
@@ -263,11 +273,11 @@ G1_vl
 ```
 
 ```{r}
-f_name <- paste("Plots/viral_dynamics.pdf")
-
-pdf(f_name, width = 6, height = 6)
-G1_vl
-dev.off()
+# f_name <- paste("Plots/viral_dynamics.pdf")
+# 
+# pdf(f_name, width = 6, height = 6)
+# G1_vl
+# dev.off()
 ```
 
 ## Plot half-life
@@ -301,14 +311,14 @@ G2_hl
 
 ```{r}
 G3_trt_effect <- plot_trt_effs(effect_ests)
-G3_trt_effect
+print(G3_trt_effect + ggtitle("Estimated treatment effects"))
 ```
 
 ```{r}
-f_name <- paste("Plots/hl_trt_eff.pdf")
+f_name <- paste("Plots/hl_trt_eff_meta_analysis.pdf")
 
-pdf(f_name, width = 10, height = 5)
-plot_grid(G2_hl, G3_trt_effect, ncol = 2, nrow = 1, align = "h", axis = "bt")
+pdf(f_name, width = 6, height = 5)
+G3_trt_effect + ggtitle("Estimated treatment effects relative to \nno study drug arm")
 dev.off()
 ```
 
@@ -349,9 +359,9 @@ platcov_dat_rebound = find_rebounds(platcov_dat = platcov_dat_rebound,
                             upper_bound = 3,
                             t_window = 1.5)
 
-#print(unique(platcov_dat_rebound$ID[platcov_dat_rebound$rebound==1]))
-#par(mfrow=c(3,1), las=1, cex.lab=1.3, cex.axis=1.3)
-#platcov_dat_rebound = platcov_dat_rebound %>% filter(rebound==1)
+print(unique(platcov_dat_rebound$ID[platcov_dat_rebound$rebound==1]))
+par(mfrow=c(3,1), las=1, cex.lab=1.3, cex.axis=1.3)
+platcov_dat_rebound = platcov_dat_rebound %>% filter(rebound==1)
 
 # for(tt in unique(platcov_dat_rebound$Trt)){
 #   xx = platcov_dat_rebound %>% filter(Trt==tt)
@@ -375,7 +385,7 @@ platcov_dat_rebound = find_rebounds(platcov_dat = platcov_dat_rebound,
 ```
 
 ```{r}
-G_rebounds <-  plot_rebound(platcov_dat_analysis, platcov_dat_rebound %>% filter(rebound == 1), trt_colors)
+G_rebounds <-  plot_rebound(platcov_dat_analysis, platcov_dat_rebound, trt_colors)
 G_rebounds
 ```
 
@@ -392,7 +402,7 @@ platcov_dat_rebound$clear_check <- "Less than 100"
 platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(100)] <- "More than 100"
 platcov_dat_rebound$clear_check[platcov_dat_rebound$daily_VL >= log10(1000)] <- "More than 1000"
 
-rebound_heatmap <- ggplot(platcov_dat_rebound %>% filter(rebound == 1), 
+rebound_heatmap <- ggplot(platcov_dat_rebound %>% filter(rebound == T), 
 aes(y = ID, x = as.factor(Timepoint_ID), fill = clear_check)) +
   geom_tile(col = "white", linewidth = 0.75) +
   facet_grid(Trt ~ ., scales = "free", space='free') +
@@ -410,26 +420,5 @@ f_name <- paste("Plots/plot_rebound_heatmap.pdf")
 
 pdf(f_name, width = 6, height = 8)
 rebound_heatmap
-dev.off()
-```
-
-```{r}
-G_rebound_tl <- ggplot(platcov_dat_rebound %>% distinct(ID, .keep_all = T), 
-       aes(x = Rand_date, y = Trt)) +
-  geom_point(aes(col = rebound, size = rebound), alpha = 0.5) +
-  scale_color_manual(values = c("black", "red")) +
-  scale_size_manual(values = c(3,6)) +
-  theme_bw(base_size = 14) +
-  theme(legend.position = "none") +
-  xlab("Randomisation date") +
-  ylab("")
-G_rebound_tl
-```
-
-```{r}
-f_name <- paste("Plots/plot_rebound_timeline.pdf")
-
-pdf(f_name, width = 8, height = 6)
-G_rebound_tl
 dev.off()
 ```

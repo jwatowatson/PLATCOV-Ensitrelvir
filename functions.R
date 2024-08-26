@@ -15,7 +15,8 @@ assess_rebound = function(patient_dat,
         virus_cleared=T
       }
       #print(virus_cleared)
-      if(virus_cleared & xx$daily_VL[i] >= upper_bound & xx$Time[i]>day_min & xx$daily_VL[i-1] < upper_bound){
+      if((virus_cleared & xx$daily_VL[i] >= upper_bound & xx$Time[i]>day_min & xx$daily_VL[i-1] < upper_bound)|
+         (virus_cleared & xx$Time[i] >= 8 & xx$daily_VL[i]  >= upper_bound)){
         rebound = T
         writeLines(sprintf('patient %s treated with %s had a rebound identified on day %s', 
                            xx$ID[1], xx$Trt[1],xx$Timepoint_ID[i]))
