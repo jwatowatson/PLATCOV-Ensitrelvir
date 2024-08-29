@@ -982,6 +982,84 @@ cal_fever_clearance <- function(temp_dat_for_plot, threshold, window_clear){
   temp_dat_for_plot
 }
 
+plot_inds <- function(model_selects = 1, platcov_dat){
+  model_list = list()
+  
+  platcov_dat <- platcov_dat %>% filter(mITT) %>% distinct(ID, .keep_all = T)
+  
+  stan_inputs_i <- stan_inputs
+  dat <- data.frame("ID" = stan_inputs_i$analysis_data_stan$id,
+                    "log10_viral_load" = stan_inputs_i$analysis_data_stan$log_10_vl,
+                    "Time" = stan_inputs_i$analysis_data_stan$obs_day)
+  ID_map <- stan_inputs_i$ID_map
+  for(i in model_selects){
+    load(ff[i])
+    model_list[[i]] = out
+  }
+  preds <- lapply(model_list, rstan::extract, "preds")
+  preds <- lapply(preds, `[[`, 1)
+  preds_list <- lapply(preds, function(x) as.data.frame(t(apply(x, 2, quantile, c(0.025, 0.5, 0.975)))))
+  preds_list <- lapply(preds_list, function(x) cbind(dat, x))
+  models <- c("Linear")#, "Non-linear")
+  preds_list <- Map(cbind, preds_list, models)
+  col_names <- c(colnames(dat), c("low", "med", "up", "model"))
+  preds_list <- lapply(preds_list, setNames, col_names)
+  preds_list <- lapply(preds_list, function(x) data.frame(x, "censor" = c(rep("none", stan_inputs_i$analysis_data_stan$N_obs), 
+                                                                          rep("left", (stan_inputs_i$analysis_data_stan$Ntot - stan_inputs_i$analysis_data_stan$N_obs)))))
+  preds_list <- lapply(preds_list, function(x) merge(x, ID_map, by.x = "ID", by.y = "ID_stan"))
+  preds_list <- lapply(preds_list, function(x) merge(x, as.data.frame(platcov_dat[,c("ID", "Trt")]), by.x = "ID_key", by.y = "ID"))
+  preds_dat <- do.call("rbind", preds_list)
+  preds_dat$Trt <- as.character(preds_dat$Trt)
+  preds_dat$Trt <- as.factor(preds_dat$Trt)
+  preds_dat$model <- as.factor(preds_dat$model)
+  preds_dat$censor <- as.factor(preds_dat$censor)
+  ID_map = merge(stan_inputs_i$ID_map, platcov_dat, by.x = 'ID_key',by.y = 'ID')
+  ID_map <- ID_map[order(ID_map$ID_key),]
+  
+  ind_plot_list <- list()
+  #resid_dat <- NULL
+  for(i in 1:nrow(ID_map)){
+    plot_data <- preds_dat %>% filter(ID_key == ID_map$ID_key[i])
+    plot_data$resid <- plot_data$log10_viral_load - plot_data$med
+    plot_data$Timepoint_ID <- round(plot_data$Time)
+    #resid_dat <- rbind(resid_dat, plot_data)
+    
+    Trt_lab <- plot_data$Trt[1]
+    if(Trt_lab == "Regeneron"){Trt_lab <- "Casirivimab/imdevimab"}
+    if(Trt_lab == "Evusheld"){Trt_lab <- "Tixagevimab/cilgavimab"}
+    
+    
+    
+    lab <- paste0(plot_data$ID_key[1], "\n", Trt_lab,"\n", plot_data$Resistant_mutations[1])
+    
+    ind_plot_list[[i]] <- ggplot() +
+      geom_point(data = plot_data[plot_data$model == "Linear",], aes(x = Time, y = log10_viral_load, shape = censor),
+                 size = 1.75, alpha = 0.8) +
+      # geom_ribbon(data = plot_data, aes(x = Time, ymin = low, ymax = up, fill = model), alpha = 0.2) +
+      geom_line(data = plot_data, aes(x = Time, y = med, col = model), linewidth = 1, alpha = 0.8) +
+      theme_bw() +
+      scale_y_continuous(labels=label_math(), breaks = seq(0,10,2)) +
+      coord_cartesian(ylim = c(0,9), xlim = c(0,14))+
+      scale_x_continuous(breaks = 0:14) +
+      ylab("") +
+      xlab("") +
+      theme(
+        axis.title  = element_text(face = "bold"),
+        plot.title = element_text(face = "bold", hjust = 0.5, size = 8),
+        legend.position = "none",
+        plot.margin = unit(c(0.1,0.1,0.1,0.1), 'lines')) +
+      scale_color_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+      scale_fill_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+      scale_shape_manual(values = c(6, 1), guide = "none", drop=FALSE) +
+      geom_hline(yintercept = 0, col = "red", linetype = "dashed") +
+      ggtitle(lab)
+    
+  }
+  return(ind_plot_list)
+}
+
+
+
 
 checkStrict(make_stan_inputs)
 checkStrict(plot_serial_data)

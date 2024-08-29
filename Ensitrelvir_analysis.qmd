@@ -433,3 +433,23 @@ pdf(f_name, width = 8, height = 6)
 G_rebound_tl
 dev.off()
 ```
+
+## Plot individual patients
+
+```{r}
+model_selects = 1
+ind_plot_list <- plot_inds(model_selects, platcov_dat)
+ind_plot_all <- ggarrange(plotlist =  ind_plot_list, nrow = 4, ncol = 4, common.legend = T, legend = "none")
+```
+
+```{r}
+for(i in 1:length(ind_plot_all)){
+  fname <- paste0("Plots/Individual_plot/", intervention, "_analysis_individual_", i, ".png")
+  
+  png(fname, width = 8, height = 8, units = "in", res = 300)
+  print(annotate_figure( ind_plot_all[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),
+                         left = textGrob("Viral densities (genomes/mL)", rot = 90, gp = gpar(cex = 1.2, fontface="bold"))))
+  dev.off()
+  
+}
+```
