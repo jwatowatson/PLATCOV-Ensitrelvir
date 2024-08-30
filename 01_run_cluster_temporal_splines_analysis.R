@@ -1,8 +1,7 @@
-#!/usr/bin/env Rscript
-args = commandArgs(trailingOnly=TRUE)
-
-load(paste0('Rout/model_run_setup_',args[1],'.RData'))
-writeLines(sprintf('Doing temporal splines analysis for %s......', args[1]))
+# script for running all the stan models with all settings on the BMRC cluster
+args = commandArgs(trailingOnly = FALSE) # comes from the SGE_TASKID in *.sh file
+job_i = as.numeric(args[6])
+print(paste0("job(i) = ", job_i)) # this will print out in the *.o file
 
 ## Packages needed
 library(rstan)
@@ -13,9 +12,9 @@ library(dplyr)
 source('functions.R')
 source('priors.R')
 
-Max_job = nrow(model_settings)
+load('Rout/model_run_setup_Unblinded_all.RData')
 
-for(job_i in 1:Max_job){
+Max_job = nrow(model_settings)
 
 if(job_i > Max_job) stop('no model setting corresponding to job ID')
 
@@ -83,6 +82,4 @@ out = sampling(mod,
 save(out, file = paste0('Rout/model_fits_temporal_spline_',job_i,'.RData'))# save output
 
 writeLines('Finished job')
-
-}
 

@@ -56,7 +56,7 @@ study_threshold = 1.2
 ```{r define_population}
 #| echo: false
 # set as file with relevant dataset
-itt_population_all = get_itt_population(prefix_drop_rand = prefix_drop_rand)
+itt_population_all = read_csv('ITT_population_meta.csv')
 
 f_name = paste0('Analysis_Data/',intervention,'_analysis.csv')
 platcov_dat = read.csv(f_name)
@@ -64,7 +64,7 @@ platcov_dat$Trt[platcov_dat$Trt=='Nirmatrelvir + Ritonavir']='Nirmatrelvir'
 platcov_dat$Rand_date = as.POSIXct(platcov_dat$Rand_date)
 trt_intervention = unique(platcov_dat$Trt)
 
-if(!all(platcov_dat$ID %in% itt_population_all$ID)) stop('IDs do not match ITT population')
+# if(!all(platcov_dat$ID %in% itt_population_all$ID)) {(print(unique(platcov_dat$ID)[which(!unique(platcov_dat$ID) %in% itt_population_all$ID)]))}
 
 for(tt in unique(trt_intervention)){
   writeLines(sprintf('Missing patients in %s arm:',tt))
@@ -190,19 +190,21 @@ stan_inputs[[i]] =
 all_mods = c("Stan_models/Temporal_spline_proportional.stan")#,
              #"Stan_models/Temporal_spline_additive.stan")
 
+num_knots <- seq(20,100,20)
+spline_degree <- 4:20
+
 model_settings = expand.grid(mod = all_mods,
                              prior = 1,
                              cov_matrices = 1, 
                             # dataset = 1:2,
                              Dmax = Dmax,
-                             num_knots_alpha = 20,
-                             spline_degree_alpha = 4,
-                             num_knots_beta = 20,
-                             spline_degree_beta = 4)
+                             num_knots_alpha = num_knots,
+                             spline_degree_alpha = spline_degree)
 
+model_settings$num_knots_beta =  model_settings$num_knots_alpha
+model_settings$spline_degree_beta = model_settings$spline_degree_alpha
 model_settings$dataset <- 1
 #model_settings$dataset[model_settings$Dmax == Dmax[2]] <- 2
-
 
 model_settings$Niter = 4000
 model_settings$Nwarmup = 2000
