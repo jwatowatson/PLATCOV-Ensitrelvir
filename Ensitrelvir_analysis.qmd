@@ -24,6 +24,8 @@ library(brms)
 library(scales)
 library(ggplot2)
 library(cowplot)
+library(ggpubr)
+library(grid)
 
 ## information on software/hardware used
 version
@@ -147,6 +149,58 @@ table(platcov_PCR_status$Timepoint_ID)
 table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
                                           'No study drug',
                                           'Ensitrelvir'))
+```
+
+```{r}
+baseline_VL_summary <- Baseline_data %>%
+  group_by(Trt) %>%
+  summarise(mean = mean(daily_VL),
+            sd = sd(daily_VL),
+            median = median(daily_VL),
+            Q1 = quantile(daily_VL, 0.25),
+            Q3 = quantile(daily_VL, 0.75)) 
+
+for(i in 1:nrow(baseline_VL_summary)){
+  writeLines(sprintf('Mean and standard deviation of baseline viral loads in %s arm is %s (%s)', 
+                     baseline_VL_summary$Trt[i],
+                     round(baseline_VL_summary$mean[i],1),
+                     round(baseline_VL_summary$sd[i],1)
+  )
+  )
+}
+```
+
+## Summarising baseline viral loads
+
+```{r}
+G_baseline_VL <- ggplot(Baseline_data %>% distinct(ID, .keep_all = T), aes(x = Trt, y = daily_VL)) +
+  geom_jitter(aes(col = Trt), size = 2.5, alpha = 0.5, width = 0.2) +
+  geom_boxplot(aes(fill = Trt), width = 0.3, outlier.shape = NA, alpha = 0.5, size = 0.75) +
+  theme_bw(base_size = 14) +
+  xlab("") +
+  ylab("Baseline viral densities (log genomes/mL)") +
+  theme(legend.position = "none") +
+  scale_color_manual(values = trt_colors[c(trts, ref_arm)]) +
+  scale_fill_manual(values = trt_colors[c(trts, ref_arm)]) 
+G_baseline_VL
+```
+
+```{r}
+f_name <- paste("Plots/baseline_vl.pdf")
+
+pdf(f_name, width = 6, height = 5)
+G_baseline_VL
+dev.off()
+```
+
+```{r}
+#Summarising baseline viral loads
+anova1 <- aov(daily_VL~Trt, data = Baseline_data)
+summary(anova1)
+
+attach(Baseline_data)
+pairwise.t.test(daily_VL, Trt, p.adjust.method = "bonf")
+detach()
 ```
 
 ## Fit models
@@ -308,7 +362,7 @@ G3_trt_effect
 f_name <- paste("Plots/hl_trt_eff.pdf")
 
 pdf(f_name, width = 10, height = 5)
-plot_grid(G2_hl, G3_trt_effect, ncol = 2, nrow = 1, align = "h", axis = "bt")
+plot_grid(G2_hl, G3_trt_effect, ncol = 2, nrow = 1, align = "h")
 dev.off()
 ```
 
@@ -347,7 +401,8 @@ platcov_dat_rebound = platcov_dat%>% filter(ID %in% IDs_analysis)
 platcov_dat_rebound = find_rebounds(platcov_dat = platcov_dat_rebound,
                             lower_bound = 2, 
                             upper_bound = 3,
-                            t_window = 1.5)
+                            t_window = 1.5,
+                            day_min = 4)
 
 #print(unique(platcov_dat_rebound$ID[platcov_dat_rebound$rebound==1]))
 #par(mfrow=c(3,1), las=1, cex.lab=1.3, cex.axis=1.3)
@@ -385,6 +440,14 @@ f_name <- paste("Plots/plot_rebound.pdf")
 pdf(f_name, width = 6, height = 6)
 G_rebounds
 dev.off()
+```
+
+```{r}
+kruskal.test(Time_rebound ~ Trt, platcov_dat_rebound %>% filter(rebound) %>% distinct(ID, .keep_all = T) )
+
+attach(platcov_dat_rebound %>% filter(rebound) %>% distinct(ID, .keep_all = T))
+pairwise.wilcox.test(Time_rebound, Trt,p.adjust.method = "bonf")
+detach()
 ```
 
 ```{r}
@@ -429,12 +492,12 @@ G_rebound_tl
 ```{r}
 f_name <- paste("Plots/plot_rebound_timeline.pdf")
 
-pdf(f_name, width = 8, height = 6)
+pdf(f_name, width = 6, height = 5)
 G_rebound_tl
 dev.off()
 ```
 
-## Plot individual patients
+## Plot individual patients (model fits)
 
 ```{r}
 model_selects = 1
@@ -448,6 +511,26 @@ for(i in 1:length(ind_plot_all)){
   
   png(fname, width = 8, height = 8, units = "in", res = 300)
   print(annotate_figure( ind_plot_all[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),
+                         left = textGrob("Viral densities (genomes/mL)", rot = 90, gp = gpar(cex = 1.2, fontface="bold"))))
+  dev.off()
+  
+}
+```
+
+## Plot individual patients (Rebound)
+
+```{r}
+model_selects = 1
+ind_plot_list_rebound <- plot_inds_rebound(model_selects, platcov_dat_rebound)
+ind_plot_all_rebound <- ggarrange(plotlist =  ind_plot_list_rebound, nrow = 4, ncol = 4, common.legend = T, legend = "none")
+```
+
+```{r}
+for(i in 1:length(ind_plot_all_rebound)){
+  fname <- paste0("Plots/Individual_plot_rebound/", intervention, "_analysis_individual_", i, ".png")
+  
+  png(fname, width = 8, height = 8, units = "in", res = 300)
+  print(annotate_figure( ind_plot_all_rebound[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),
                          left = textGrob("Viral densities (genomes/mL)", rot = 90, gp = gpar(cex = 1.2, fontface="bold"))))
   dev.off()
   
