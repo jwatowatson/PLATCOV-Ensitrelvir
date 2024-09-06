@@ -8,6 +8,8 @@
 #SBATCH -e /well/moru-batty/users/lcd199/PLATCOV-Ensitrelvir/o_and_e_files/output.e%A_%a.out
 #SBATCH -p long
 #SBATCH --array 1-85
+#SBATCH -t 5-0:00
+
 
 
 echo started=`date`
