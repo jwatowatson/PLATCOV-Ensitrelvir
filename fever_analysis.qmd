@@ -90,6 +90,10 @@ diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_da
 pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
 ```
 
+```{r}
+print(fit, rmean = 7)
+```
+
 ## Kaplan-Meier plot
 
 ```{r}
@@ -110,7 +114,7 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                                   "No study drug"),
                                   break.time.by = 1,
                                   pval.size = 4,
-                                  pval.coord = c(5,0.9),
+                                  pval.coord = c(0,0.1),
                                   size = 1.5,
                                   alpha = 0.7,
                                   xlim = c(0,7)) 
@@ -135,4 +139,8 @@ fname <- paste0("Plots/", intervention, "Temp_surv_plot.pdf")
 pdf(fname, width = 6, height = 6)
 print(survplot, newpage = F)
 dev.off()
+```
+
+```{r}
+temp_dat_for_plot2
 ```
