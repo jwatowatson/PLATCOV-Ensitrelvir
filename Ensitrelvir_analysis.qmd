@@ -178,10 +178,13 @@ G_baseline_VL <- ggplot(Baseline_data %>% distinct(ID, .keep_all = T), aes(x = T
   geom_boxplot(aes(fill = Trt), width = 0.3, outlier.shape = NA, alpha = 0.5, size = 0.75) +
   theme_bw(base_size = 14) +
   xlab("") +
-  ylab("Baseline viral densities (log genomes/mL)") +
-  theme(legend.position = "none") +
+  ylab("Admission SARS-CoV-2 genomes/mL") +
+  theme(legend.position = "none",
+        axis.title  = element_text(face  = "bold")) +
   scale_color_manual(values = trt_colors[c(trts, ref_arm)]) +
-  scale_fill_manual(values = trt_colors[c(trts, ref_arm)]) 
+  scale_fill_manual(values = trt_colors[c(trts, ref_arm)])    + 
+  scale_y_continuous(labels=label_math(), breaks = seq(0,10,2), limits = c(0,9)) 
+
 G_baseline_VL
 ```
 

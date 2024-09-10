@@ -883,7 +883,7 @@ plot_hl <- function(Half_life, trt_colors){
     as.data.frame()
   f_tab$med_hl <- Half_life_med$med_hl
   
-  f_tab$lab <- paste0(f_tab$Trt,": n = ", f_tab$n, "; half-life = ", round(f_tab$med_hl,1), " h")
+  f_tab$lab <- paste0(f_tab$Trt,": n = ", f_tab$n, "; half-life = ", round(f_tab$med_hl,1), " hours")
   freq_lab <- paste(f_tab$lab, collapse = '\n')
   
   
@@ -902,10 +902,10 @@ plot_hl <- function(Half_life, trt_colors){
           plot.title = element_text( face = "bold"),
           legend.position = "bottom") +
     coord_cartesian(xlim=c(0, 35)) +
-    xlab("Estimated viral clearance half-life (h)") +
+    xlab("Viral clearance half-life (hours)") +
     ylab("Individual patients") +
     ggtitle("A) Individual viral clearance half-life\n") +
-    annotate("text", x = 13, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1) 
+    annotate("text", x = 10, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1) 
   G
   
   
