@@ -1176,6 +1176,142 @@ plot_inds_rebound <- function(model_selects = 1, platcov_dat_rebound){
 }
 
 
+make_stan_inputs_temporal_splines = function(input_data_fit, 
+                            int_covs_base,
+                            int_covs_full,
+                            slope_covs_base,
+                            slope_covs_full,
+                            trt_frmla,
+                            epoch=NA,
+                            Dmax
+){
+  
+  ## check censored values come last
+  if(!all(diff(input_data_fit$log10_viral_load == input_data_fit$log10_cens_vl)>=0)) stop()
+  ind_dup = !duplicated(input_data_fit$ID)
+  
+  for(ll in unique(input_data_fit$Lab)){
+    ind = input_data_fit$Lab==ll
+    med_val = median(input_data_fit$CT_RNaseP[ind], na.rm = T)
+    input_data_fit$CT_RNaseP[ind & is.na(input_data_fit$CT_RNaseP)]=med_val
+    input_data_fit$CT_RNaseP[ind] = input_data_fit$CT_RNaseP[ind]-med_val
+  }
+  input_data_fit$RnaseP_scaled = input_data_fit$CT_RNaseP
+  
+  input_data_fit$Age_scaled = (input_data_fit$Age-mean(input_data_fit$Age[ind_dup]))/sd(input_data_fit$Age[ind_dup])
+  
+  # make the covariate matrix
+  # check no missing data
+  if(!all(!apply(input_data_fit[, unique(c(int_covs_full,slope_covs_full))], 2, function(x) any(is.na(x))))){
+    stop('Missing data in covariate matrix!')
+  }
+  
+  
+  ## Design matrix for intercept
+  ind_contr = which(apply(input_data_fit[, int_covs_base,drop=F], 2, 
+                          function(x) length(unique(x))>1))
+  if(length(ind_contr)>0){
+    X_intcpt_1 = model.matrix( ~ ., 
+                               data = input_data_fit[, int_covs_base[ind_contr],drop=F])[, -1, drop=F]
+  } else {
+    X_intcpt_1 = array(dim = c(nrow(input_data_fit),0))
+  }
+  
+  ind_contr = which(apply(input_data_fit[, int_covs_full,drop=F], 2, function(x) length(unique(x))>1))
+  if(length(ind_contr)>0){
+    X_intcpt_2 = model.matrix( ~ ., 
+                               data = input_data_fit[, int_covs_full[ind_contr],drop=F])[, -1, drop=F]
+  } else {
+    X_intcpt_2 = array(dim = c(nrow(input_data_fit),0))
+  }
+  
+  ## Design matrix for slope
+  ind_contr = which(apply(input_data_fit[, slope_covs_base,drop=F], 2, function(x) length(unique(x))>1))
+  if(length(ind_contr)>0){
+    X_slope_1 = model.matrix( ~ ., 
+                              data = input_data_fit[, slope_covs_base[ind_contr],drop=F])[, -1, drop=F]
+  } else {
+    X_slope_1 = array(dim = c(nrow(input_data_fit),0))
+  }
+  
+  ind_contr = which(apply(input_data_fit[, slope_covs_full,drop=F], 2, function(x) length(unique(x))>1))
+  if(length(ind_contr)>0){
+    X_slope_2 = model.matrix( ~ ., 
+                              data = input_data_fit[, slope_covs_full[ind_contr],drop=F])[, -1, drop=F]
+  } else {
+    X_slope_2 = array(dim = c(nrow(input_data_fit),0))
+  }
+  
+  # ## Design matrix for tmax
+  # ind_contr = which(apply(input_data_fit[, tmax_covs_base,drop=F], 2, function(x) length(unique(x))>1))
+  # if(length(ind_contr)>0){
+  #   X_tmax_1 = model.matrix( ~ ., 
+  #                             data = input_data_fit[, tmax_covs_base[ind_contr],drop=F])[, -1, drop=F]
+  # } else {
+  #   X_tmax_1 = array(dim = c(nrow(input_data_fit),0))
+  # }
+  # 
+  # ind_contr = which(apply(input_data_fit[, tmax_covs_full,drop=F], 2, function(x) length(unique(x))>1))
+  # if(length(ind_contr)>0){
+  #   X_tmax_2 = model.matrix( ~ ., 
+  #                             data = input_data_fit[, tmax_covs_full[ind_contr],drop=F])[, -1, drop=F]
+  # } else {
+  #   X_tmax_2 = array(dim = c(nrow(input_data_fit),0))
+  # }
+  
+  if(!nrow(X_intcpt_1) == nrow(input_data_fit)) stop()
+  if(!nrow(X_slope_1) == nrow(input_data_fit)) stop()
+  # if(!nrow(X_tmax_1) == nrow(input_data_fit)) stop()
+  
+  cov_matrices = list(X_int=list(X_intcpt_1, X_intcpt_2),
+                      X_slope=list(X_slope_1, X_slope_2))
+  # X_tmax=list(X_tmax_1, X_tmax_2))
+  
+  ID_map = data.frame(ID_key = input_data_fit$ID,
+                      ID_stan = as.numeric(as.factor(input_data_fit$ID)))
+  writeLines(sprintf('There are a total of %s patients in the database with a total of %s PCRs analysable',
+                     max(ID_map$ID_stan),
+                     nrow(input_data_fit)))
+  
+  ind_cens = !input_data_fit$log10_viral_load>
+    input_data_fit$log10_cens_vl
+  
+  writeLines(sprintf('%s%% of samples are below LOD',
+                     round(100*mean(ind_cens),digits = 2)))
+  
+  analysis_data_stan = list(Ntot = nrow(input_data_fit),
+                            N_obs = sum(!ind_cens),
+                            n_id = max(ID_map$ID_stan),
+                            id = ID_map$ID_stan,
+                            ind_start = which(!duplicated(ID_map$ID_stan)),
+                            obs_day = input_data_fit$Time,
+                            log_10_vl = input_data_fit$log10_viral_load,
+                            log10_cens_vl = input_data_fit$log10_cens_vl,
+                            RNaseP = input_data_fit$RnaseP_scaled,
+                            Time_max = Dmax)
+  if(!is.na(epoch)){
+    analysis_data_stan$epoch = as.numeric(as.factor(input_data_fit$Epoch))
+    analysis_data_stan$K_epoch = max(analysis_data_stan$epoch)
+  }
+  ID_map = ID_map[!duplicated(ID_map$ID_key), ]
+  
+  writeLines('check stan data formatting:')
+  all(analysis_data_stan$log_10_vl[1:analysis_data_stan$N_obs]>
+        analysis_data_stan$log10_cens_vl[1:analysis_data_stan$N_obs]) &
+    all(analysis_data_stan$log_10_vl[(1+analysis_data_stan$N_obs):analysis_data_stan$Ntot] ==
+          analysis_data_stan$log10_cens_vl[(1+analysis_data_stan$N_obs):analysis_data_stan$Ntot])
+  
+  Trt_matrix = model.matrix(trt_frmla, data = input_data_fit)
+  ref_arm <- levels(input_data_fit$Trt)[1]
+  Trt_matrix[,c(1,grep(ref_arm, colnames(Trt_matrix)))]=0 # first column is dummy
+  
+  analysis_inputs = list(cov_matrices=cov_matrices,
+                         analysis_data_stan=analysis_data_stan,
+                         Trt_matrix=Trt_matrix,
+                         ID_map=ID_map)
+  return(analysis_inputs)
+}
+
 checkStrict(make_stan_inputs)
 checkStrict(plot_serial_data)
 checkStrict(plot_effect_estimates)
