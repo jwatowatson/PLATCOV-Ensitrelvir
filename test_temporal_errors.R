@@ -10,7 +10,7 @@ trts = levels(as.factor(platcov_dat_analysis_list[[1]]$Trt))
 trts = trts[-1]
 nrow(platcov_dat_analysis_list[[1]])
 
-ind_res <- 7
+ind_res <- 1
 model_settings[ind_res,]
 list.files('Rout_batch/Rout/', pattern = paste0('.RData'),)
 
@@ -43,10 +43,10 @@ slope_trt <- matrix(NA, ncol = n_id, nrow = 2000)
 
 
 for (j in 1:n_id) {
-    slope_ALL[, ID_map$ID_stan[j]]  <-
-      post_beta_hat[, ID_map$ID_stan[j]] * exp(post_trt_slope[, ind_start[j]] +  post_trt_theta_rand_id[, j, 2] +  post_trt_beta_cov[, ind_start[j]])
-    slope_trt[, ID_map$ID_stan[j]] <-
-      post_beta_hat[, ID_map$ID_stan[j]] * exp(post_trt_slope[, ind_start[j]])
+    slope_ALL[, j]  <-
+      post_beta_hat[, j] * exp(post_trt_slope[, ind_start[j]] +  post_trt_theta_rand_id[, j, 2] +  post_trt_beta_cov[, ind_start[j]])
+    slope_trt[, j] <-
+      post_beta_hat[,j] * exp(post_trt_slope[, ind_start[j]])
 }
   
 slope_summarize <- apply(slope_ALL, 2, quantile, c(0.025, 0.5, 0.975))

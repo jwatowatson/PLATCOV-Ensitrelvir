@@ -187,11 +187,11 @@ stan_inputs[[i]] =
 ```
 
 ```{r setup_models}
-all_mods = c("Stan_models/Temporal_spline_proportional.stan")#,
+all_mods = c("Stan_models/Temporal_spline_proportional_2.stan")#,
              #"Stan_models/Temporal_spline_additive.stan")
 
-num_knots <- seq(20,100,20)
-spline_degree <- 4:20
+num_knots <- 20 #seq(20,100,20)
+spline_degree <- 4#4:20
 
 model_settings = expand.grid(mod = all_mods,
                              prior = 1,
@@ -235,7 +235,7 @@ if(RUN_MODELS){
 ```
 
 ```{r}
-ff = list.files('Rout/', pattern = paste0(intervention,'.RData'),)
+ff = list.files('Rout/', pattern = paste0('model_fits_temporal_spline'),)
 ff = ff[grep(pattern = 'model_fits_',x = ff, ignore.case = T)]
 if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
 ff = paste0('Rout/',ff)
@@ -260,5 +260,5 @@ for(i in 1:length(ff)){
     summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
   rownames(effect_ests[[i]]) = trts
 }
+effect_ests
 ```
-

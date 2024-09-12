@@ -50,9 +50,8 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Ensitrelvir' 
-ref_arm = 'Nirmatrelvir'
-study_threshold = 0.9
+#intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
+intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -196,16 +195,6 @@ G_baseline_VL
 dev.off()
 ```
 
-```{r}
-#Summarising baseline viral loads
-anova1 <- aov(daily_VL~Trt, data = Baseline_data)
-summary(anova1)
-
-attach(Baseline_data)
-pairwise.t.test(daily_VL, Trt, p.adjust.method = "bonf")
-detach()
-```
-
 ## Fit models
 
 ```{r}
@@ -265,7 +254,9 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
                    unique(model_settings$Nthin), 
                    unique(model_settings$Nchain*(model_settings$Niter-model_settings$Nwarmup)/model_settings$Nthin)))
 
-model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
+model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'_vs_NSD.RData')
+#model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
+
 save(model_settings, 
      platcov_dat_analysis,
      stan_inputs, 
@@ -275,7 +266,9 @@ save(model_settings,
 
 ```{r}
 if(RUN_MODELS){
-  system(paste('Rscript --vanilla run_models_local.R',intervention))
+ # system(paste('Rscript --vanilla run_models_local.R',intervention))
+  system(paste('Rscript --vanilla run_models_local.R',paste0(intervention, "_vs_NSD")))
+
 }
 ```
 
