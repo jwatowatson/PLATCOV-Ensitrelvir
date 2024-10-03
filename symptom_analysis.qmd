@@ -46,7 +46,7 @@ sympt_dat <- read.csv(paste0('Analysis_Data/', intervention,'_symptom_data.csv')
 sympt_dat <- merge(sympt_dat, platcov_dat[,c("ID","Trt", "Rand_date", "mITT")], by.x = "Label", by.y = "ID", all.y = T)
 
 
-#sympt_dat <- sympt_dat %>% filter(mITT, Timepoint_ID <=7)
+sympt_dat <- sympt_dat %>% filter(mITT, Timepoint_ID <=7)
 
 IDs <- unique(sympt_dat$Label)
 ```
@@ -158,7 +158,7 @@ survplot
 ```
 
 ```{r}
-fname <- paste0("Plots/", intervention, "symptom_surv_plot.pdf")
+fname <- paste0("Plots/", intervention, "symptom_surv_plot_7days.pdf")
 
 pdf(fname, width = 6, height = 6)
 print(survplot, newpage=F)

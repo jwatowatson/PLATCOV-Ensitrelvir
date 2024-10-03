@@ -254,7 +254,7 @@ generated quantities {
   //  log_lik[i] = student_t_lcdf(log10_cens_vl[i] | t_dof, pred_log10_vl[i], sigma_logvl);
   }
   for(i in 1:n_id){
-    int j = ind_start[i];
+    int j = ind_start[id[i]];
     slope[i] = beta_hat[i]*exp(trt_slope[j]+theta_rand_id[i][2]+beta_cov[j]);
     Beta_hat[i] = beta_hat[i];
     Beta_hat_trt[i] = beta_hat[i]*exp(trt_slope[j]);

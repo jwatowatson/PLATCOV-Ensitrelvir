@@ -1,3 +1,22 @@
+library(ggplot2)
+
+my_probs = c(0.025, 0.1, .5, .9, .975)
+
+load('Rout/model_run_setup_Unblinded_all.RData')
+
+ff = list.files('Rout/', pattern = paste0('model_fits_temporal_spline'),)
+ff = ff[grep(pattern = 'model_fits_',x = ff, ignore.case = T)]
+if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
+ff = paste0('Rout/',ff)
+
+ID_map <- stan_inputs[[1]]$ID_map
+
+trts = levels(as.factor(platcov_dat_analysis_list[[1]]$Trt))
+trts = trts[-1]
+nrow(platcov_dat_analysis_list[[1]])
+
+load(ff)
+
 ind_res <-1
 
 n_id <- stan_inputs[[model_settings$dataset[ind_res]]]$analysis_data_stan$n_id
@@ -15,6 +34,7 @@ post_Beta_hat_trt_summarize <- apply(post_Beta_hat_trt, 2, quantile, c(0.025, 0.
 post_slope_summarize <- apply(post_slope, 2, quantile, c(0.025, 0.5, 0.975))
 
 data_for_plot_slope <-  platcov_dat_analysis_list[[model_settings$dataset[ind_res]]][ind_start,]
+#data_for_plot_slope <- data_for_plot_slope[ID_map$ID_stan,]
 
 data_for_plot_slope$slope_low <- post_slope_summarize[1,]
 data_for_plot_slope$slope_med <- post_slope_summarize[2,]
@@ -42,7 +62,8 @@ Sp_all <- ggplot(data_for_plot_slope, aes(x = Rand_date, y = slope_med)) +
   theme_bw() +
   # geom_errorbar(aes(ymin = slope_low, ymax = slope_up), width = 0,
   #               alpha = 0.5, col = "grey", linewidth = 0.25) +
-  geom_point(aes(x = Rand_date, y = beta_hat), 
+
+geom_point(aes(x = Rand_date, y = beta_hat), 
              #linewidth = 1.75, 
              alpha = 0.7, col = "red") +
   xlab("Randomisation date") +

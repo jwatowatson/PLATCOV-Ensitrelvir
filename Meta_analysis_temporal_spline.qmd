@@ -74,6 +74,7 @@ for(tt in unique(trt_intervention)){
 # interventions
 if(length(trt_intervention)==0) stop('no interventions!')
 trts = trt_intervention[trt_intervention!=ref_arm] # get interventions
+trt_colors = trt_colors[trt_intervention]
 ```
 
 ## Make modified intention to treat population
@@ -93,24 +94,22 @@ table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 
 ```{r baseline}
 #| echo: false
-platcov_dat = platcov_dat %>% group_by(ID, Timepoint_ID) %>%
+platcov_dat = platcov_dat %>% ungroup() %>% 
   mutate(Study_time = as.numeric(difftime(Rand_date,min(Rand_date),units = 'weeks')),
-        Study_time_normal = Study_time,
+         Study_time_normal = Study_time,
          Study_time = scale(Study_time),
-         daily_VL = mean(log10_viral_load),
-         daily_CT = mean(CT_NS)) %>% 
-  ungroup() %>%
-  mutate(Sex = as.factor(ifelse(Sex==1,'Male','Female')),
+         ) %>% 
+  group_by(ID, Timepoint_ID) %>%
+  mutate(daily_VL = mean(log10_viral_load),
+         daily_CT = mean(CT_NS),
+         Sex = as.factor(ifelse(Sex==1,'Male','Female')),
          Site = as.factor(Site),
          Trt = factor(Trt, levels=c(ref_arm, trts)),
          Vaccinated = as.factor(ifelse(N_dose>0,'Yes','No')),
-         # Variant = as.factor(Variant),
          trt_color = 
            as.character(plyr::mapvalues(Trt,
                                         from = names(trt_colors),
-                                        to = trt_colors)),
-         Study_time = as.numeric(difftime(Rand_date,min(Rand_date),units = 'weeks')),
-         Study_time = scale(Study_time) #normalise
+                                        to = trt_colors))
   )
 
 Baseline_data = platcov_dat %>% ungroup() %>% 
@@ -183,7 +182,6 @@ stan_inputs[[i]] =
                    trt_frmla = formula('~ Trt'), #'~ Trt'
                    Dmax = Dmax)
   
-
 ```
 
 ```{r setup_models}
@@ -206,9 +204,9 @@ model_settings$spline_degree_beta = model_settings$spline_degree_alpha
 model_settings$dataset <- 1
 #model_settings$dataset[model_settings$Dmax == Dmax[2]] <- 2
 
-model_settings$Niter = 4000
-model_settings$Nwarmup = 2000
-model_settings$Nthin = 4
+model_settings$Niter = 4000/2
+model_settings$Nwarmup = 2000/2
+model_settings$Nthin = 4/2
 model_settings$Nchain = 4
 
 model_settings$intervention <- intervention

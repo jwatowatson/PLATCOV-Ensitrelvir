@@ -50,8 +50,8 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-#intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
-intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
+intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
+#intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -273,6 +273,8 @@ if(RUN_MODELS){
 ```
 
 ```{r}
+if(ref_arm == "No study drug"){intervention <- paste0(intervention, "_vs_NSD")}
+
 ff = list.files('Rout/', pattern = paste0(intervention,'.RData'),)
 ff = ff[grep(pattern = 'model_fits_',x = ff, ignore.case = T)]
 if(!length(ff)==nrow(model_settings)) stop('not all outputs are ready for all model settings')
@@ -313,6 +315,13 @@ G1_vl
 ```
 
 ```{r}
+platcov_dat_analysis %>%
+  group_by(Trt, Timepoint_ID) %>%
+  summarise(median_vl = median(daily_VL)) %>%
+  filter(Timepoint_ID == 4)
+```
+
+```{r}
 f_name <- paste("Plots/viral_dynamics.pdf")
 
 pdf(f_name, width = 6, height = 6)
@@ -345,6 +354,14 @@ Half_life
 ```
 
 ```{r}
+Half_life %>%
+  group_by(Trt) %>%
+  summarise(med = median(t_12_med),
+            Q1 = quantile(t_12_med, 0.25),
+            Q3 = quantile(t_12_med, 0.75))
+```
+
+```{r}
 G2_hl <- plot_hl(Half_life, trt_colors)
 G2_hl
 ```
@@ -352,6 +369,16 @@ G2_hl
 ```{r}
 G3_trt_effect <- plot_trt_effs(effect_ests)
 G3_trt_effect
+```
+
+```{r}
+f_name <- paste("Plots/trt_eff.pdf")
+lab_ref <- ref_arm
+lab_ref[lab_ref == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+
+pdf(f_name, width = 6, height = 5)
+G3_trt_effect + ggtitle(paste0("Estimated treatment effects \nrelative to ", tolower(lab_ref), " arm"))
+dev.off()
 ```
 
 ```{r}
@@ -372,12 +399,17 @@ for(i in 1:nrow(effect_ests_rep)){
   writeLines(sprintf('Estimated treatment effect of %s relative to %s is %s%% [95%% CrI: %s to %s %%]', 
                      rownames(effect_ests_rep)[i],
                      ref_arm,
-                     round(effect_ests_rep[i, 3],1),
-                     round(effect_ests_rep[i, 1],1),
-                     round(effect_ests_rep[i, 5],1)
+                     round(effect_ests_rep[i, 3],0),
+                     round(effect_ests_rep[i, 1],0),
+                     round(effect_ests_rep[i, 5],0)
   )
   )
 }
+```
+
+```{r}
+trt_effects <- rstan::extract(out, 'trt_effect')$trt_effect
+sum(formatter(exp(trt_effects[,1])) < formatter(study_threshold))/nrow(trt_effects)
 ```
 
 ```{r coef_plot}

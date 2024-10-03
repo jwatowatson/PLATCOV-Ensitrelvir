@@ -904,7 +904,7 @@ plot_hl <- function(Half_life, trt_colors){
     coord_cartesian(xlim=c(0, 35)) +
     xlab("Viral clearance half-life (hours)") +
     ylab("Individual patients") +
-    ggtitle("A) Individual viral clearance half-life\n") +
+    ggtitle("A) Individual viral clearance half-lives\n") +
     annotate("text", x = 10, y = nrow(Half_life)/6, label = freq_lab, hjust = 0, vjust = 1) 
   G
   
