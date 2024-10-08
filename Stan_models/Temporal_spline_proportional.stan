@@ -240,7 +240,9 @@ generated quantities {
   real preds[Ntot]; // For plotting
   vector[Ntot] log_lik;
   vector[n_id] slope;
-  
+  vector[n_id] Beta_hat;
+  vector[n_id] Trt_slope;
+
   for(i in 1:N_obs){
     preds[i] = pred_log10_vl[i]-gamma_rnasep*RNaseP[i];
     log_lik[i] = student_t_lpdf(log_10_vl[i] | t_dof, pred_log10_vl[i], sigma_logvl);
@@ -252,5 +254,7 @@ generated quantities {
   for(i in 1:n_id){
     int j = ind_start[i];
     slope[i] = beta_hat[i]*exp(trt_slope[j]+theta_rand_id[i][2]+beta_cov[j]);
+    Trt_slope[i] = trt_slope[j];
+    Beta_hat[i] = beta_hat[i];
   }
 }

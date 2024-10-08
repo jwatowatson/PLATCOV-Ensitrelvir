@@ -143,4 +143,14 @@ dev.off()
 
 ```{r}
 temp_dat_for_plot2
+
+temp_dat_for_plot2$Trt <- as.factor(temp_dat_for_plot2$Trt)
+temp_dat_for_plot2$Trt <- factor(temp_dat_for_plot2$Trt, levels = c("No study drug", "Ensitrelvir", "Nirmatrelvir + Ritonavir"))
+
+coxfit <- coxph(Surv(clearance_time, clearance_time_cens) ~ Trt, data = temp_dat_for_plot2) 
+print(coxfit)
+```
+
+```{r}
+print(data.frame(exp(coxfit$coefficients) , exp(confint(coxfit))))
 ```

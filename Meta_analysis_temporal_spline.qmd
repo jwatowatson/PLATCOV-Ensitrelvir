@@ -33,7 +33,7 @@ rstan_options(auto_write = TRUE)
 ## parameters for the analysis
 Dmax = 5.5
 RUN_MODELS = F
-add_epoch = T # if using non-concurrent controls
+add_epoch = F # if using non-concurrent controls
 
 my_probs = c(0.025, 0.1, .5, .9, .975)
 source('functions.R')
@@ -94,22 +94,21 @@ table(Intervention=pop_table$Trt, `mITT population` = pop_table$mITT)
 
 ```{r baseline}
 #| echo: false
-platcov_dat = platcov_dat %>% ungroup() %>% 
-  mutate(Study_time = as.numeric(difftime(Rand_date,min(Rand_date),units = 'weeks')),
-         Study_time_normal = Study_time,
-         Study_time = scale(Study_time),
-         ) %>% 
-  group_by(ID, Timepoint_ID) %>%
+platcov_dat = platcov_dat %>% group_by(ID, Timepoint_ID) %>%
   mutate(daily_VL = mean(log10_viral_load),
-         daily_CT = mean(CT_NS),
-         Sex = as.factor(ifelse(Sex==1,'Male','Female')),
+         daily_CT = mean(CT_NS)) %>% 
+  ungroup() %>%
+  mutate(Sex = as.factor(ifelse(Sex==1,'Male','Female')),
          Site = as.factor(Site),
          Trt = factor(Trt, levels=c(ref_arm, trts)),
          Vaccinated = as.factor(ifelse(N_dose>0,'Yes','No')),
+         # Variant = as.factor(Variant),
          trt_color = 
            as.character(plyr::mapvalues(Trt,
                                         from = names(trt_colors),
-                                        to = trt_colors))
+                                        to = trt_colors)),
+         Study_time = as.numeric(difftime(Rand_date,min(Rand_date),units = 'weeks')),
+         Study_time = scale(Study_time) #normalise
   )
 
 Baseline_data = platcov_dat %>% ungroup() %>% 
@@ -156,7 +155,7 @@ i<-1
 
   platcov_dat_analysis_list[[i]] = 
   platcov_dat %>% ungroup() %>%
-  filter(mITT, Time <= Dmax) %>%
+  filter(mITT, Time <= Dmax, Timepoint_ID < ceiling(Dmax)) %>%
   arrange(log10_viral_load==log10_cens_vl) %>%
   mutate(Variant = as.factor(Variant),
          Site = as.factor(Site),
@@ -180,20 +179,21 @@ stan_inputs[[i]] =
                    slope_covs_base = covs_base,
                    slope_covs_full = covs_full,
                    trt_frmla = formula('~ Trt'), #'~ Trt'
+                   epoch = add_epoch,
                    Dmax = Dmax)
   
 ```
 
 ```{r setup_models}
-all_mods = c("Stan_models/Temporal_spline_proportional_2.stan")#,
+all_mods = c("Stan_models/Temporal_spline_proportional.stan")#,
              #"Stan_models/Temporal_spline_additive.stan")
 
 num_knots <- 20 #seq(20,100,20)
 spline_degree <- 4#4:20
 
 model_settings = expand.grid(mod = all_mods,
-                             prior = 1,
-                             cov_matrices = 1, 
+                             prior = 2,
+                             cov_matrices = 2, 
                             # dataset = 1:2,
                              Dmax = Dmax,
                              num_knots_alpha = num_knots,
@@ -204,9 +204,9 @@ model_settings$spline_degree_beta = model_settings$spline_degree_alpha
 model_settings$dataset <- 1
 #model_settings$dataset[model_settings$Dmax == Dmax[2]] <- 2
 
-model_settings$Niter = 4000/2
-model_settings$Nwarmup = 2000/2
-model_settings$Nthin = 4/2
+model_settings$Niter = 4000/20
+model_settings$Nwarmup = 2000/20
+model_settings$Nthin = 4/4
 model_settings$Nchain = 4
 
 model_settings$intervention <- intervention
@@ -259,4 +259,25 @@ for(i in 1:length(ff)){
   rownames(effect_ests[[i]]) = trts
 }
 effect_ests
+```
+
+```{r}
+effect_ests_rep <- as.data.frame(do.call("rbind", effect_ests))
+effect_ests_rep <- formatter(exp(effect_ests_rep))
+
+for(i in 1:nrow(effect_ests_rep)){
+  writeLines(sprintf('Estimated treatment effect of %s relative to %s is %s%% [95%% CrI: %s to %s %%]', 
+                     rownames(effect_ests_rep)[i],
+                     ref_arm,
+                     round(effect_ests_rep[i, 3],1),
+                     round(effect_ests_rep[i, 1],1),
+                     round(effect_ests_rep[i, 5],1)
+  )
+  )
+}
+```
+
+```{r}
+G3_trt_effect <- plot_trt_effs(effect_ests)
+print(G3_trt_effect + ggtitle("Estimated treatment effects"))
 ```

@@ -52,6 +52,15 @@ IDs <- unique(sympt_dat$Label)
 ```
 
 ```{r}
+yn_ind <- grep("yn", colnames(sympt_dat))
+temp <- sympt_dat[,yn_ind[-c(1, length(yn_ind))]]
+temp[is.na(temp)] <-0 
+
+sympt_dat$sq_yn <- rowSums(temp)
+sympt_dat$sq_yn[sympt_dat$sq_yn > 0] <- 1
+```
+
+```{r}
 sympt_dat_for_plot <- sympt_dat
 
 sympt_dat_for_plot <- sympt_dat_for_plot[!is.na(sympt_dat_for_plot$sq_yn),]
@@ -142,7 +151,8 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                   pval.size = 4,
                                   pval.coord = c(0,0.1),
                                   size = 1.2,
-                                  alpha = 0.7) 
+                                  alpha = 0.7,
+                                  xlim = c(0,7)) 
 survplot$plot <- survplot$plot + 
   geom_hline(yintercept = c(0,1), linetype = "dashed", size = 0.6) +
   geom_hline(yintercept = 0.5, linetype = "dashed", col = "red", size = 0.6) +
@@ -151,7 +161,7 @@ survplot$plot <- survplot$plot +
   theme(axis.text=element_text(size=8),
         axis.title=element_text(size=13,face="bold",),
         strip.text = element_text(size = 10, face = "bold"),
-  )
+  ) 
 
 
 survplot
@@ -163,6 +173,18 @@ fname <- paste0("Plots/", intervention, "symptom_surv_plot_7days.pdf")
 pdf(fname, width = 6, height = 6)
 print(survplot, newpage=F)
 dev.off()
+```
+
+```{r}
+sympt_dat_for_plot2$Trt <- as.factor(sympt_dat_for_plot2$Trt)
+sympt_dat_for_plot2$Trt <- factor(sympt_dat_for_plot2$Trt, levels = c("No study drug", "Ensitrelvir", "Nirmatrelvir + Ritonavir"))
+
+coxfit <- coxph(Surv(clearance_time, clearance_time_cens) ~ Trt, data = sympt_dat_for_plot2) 
+print(coxfit)
+```
+
+```{r}
+print(data.frame(exp(coxfit$coefficients) , exp(confint(coxfit))))
 ```
 
 ## Bitter taste

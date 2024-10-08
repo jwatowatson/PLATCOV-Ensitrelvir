@@ -50,8 +50,8 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
-#intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
+#intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
+intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -152,6 +152,7 @@ table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
 
 ```{r}
 baseline_VL_summary <- Baseline_data %>%
+  filter(mITT) %>%
   group_by(Trt) %>%
   summarise(mean = mean(daily_VL),
             sd = sd(daily_VL),
@@ -476,6 +477,24 @@ kruskal.test(Time_rebound ~ Trt, platcov_dat_rebound %>% filter(rebound) %>% dis
 attach(platcov_dat_rebound %>% filter(rebound) %>% distinct(ID, .keep_all = T))
 pairwise.wilcox.test(Time_rebound, Trt,p.adjust.method = "bonf")
 detach()
+```
+
+```{r}
+rebound_fq <- platcov_dat_rebound %>%
+  distinct(ID, .keep_all = T) %>%
+  group_by(Trt) %>%
+  summarise(x = sum(rebound),
+            n = n(),
+            x_prime = n - x)
+rebound_fq
+```
+
+```{r}
+prop.test(rebound_fq$x, rebound_fq$n)
+```
+
+```{r}
+pairwise.prop.test(rebound_fq$x, rebound_fq$n, p.adjust.method = "none")
 ```
 
 ```{r}
