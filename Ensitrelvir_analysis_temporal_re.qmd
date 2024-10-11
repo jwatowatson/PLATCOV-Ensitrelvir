@@ -139,21 +139,22 @@ tab.ff
 ```
 
 ```{r}
-quant <- quantile(Baseline_data$Study_time, seq(0,1,0.2))
+nperiod <- 10
+quant <- quantile(Baseline_data$Rand_date, seq(0,1,1/nperiod))
 
 platcov_dat <- platcov_dat %>% 
-  mutate(period_id = cut(Study_time, breaks = quant, include.lowest = TRUE, labels = FALSE)) 
+  mutate(period_id = cut(Rand_date, breaks = quant, include.lowest = TRUE, labels = FALSE)) 
 ```
 
 ```{r}
-platcov_PCR_status = platcov_dat %>% 
-  distinct(ID, Timepoint_ID, .keep_all = T) %>%
-  arrange(ID, Time)
-table(Baseline_data$mITT)
-table(platcov_PCR_status$Timepoint_ID)
-table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
-                                          'No study drug',
-                                          'Ensitrelvir'))
+# platcov_PCR_status = platcov_dat %>% 
+#   distinct(ID, Timepoint_ID, .keep_all = T) %>%
+#   arrange(ID, Time)
+# table(Baseline_data$mITT)
+# table(platcov_PCR_status$Timepoint_ID)
+# table(itt_population_all$Treatment %in% c('Nirmatrelvir + Ritonavir',
+#                                           'No study drug',
+#                                           'Ensitrelvir'))
 ```
 
 ```{r}
@@ -330,22 +331,32 @@ platcov_dat_analysis %>%
 ```
 
 ```{r}
-f_name <- paste("Plots/viral_dynamics.pdf")
-
-pdf(f_name, width = 6, height = 6)
-G1_vl
-dev.off()
+# f_name <- paste("Plots/viral_dynamics.pdf")
+# 
+# pdf(f_name, width = 6, height = 6)
+# G1_vl
+# dev.off()
 ```
 
 ## Plot half-life
 
 ```{r}
 slopes = rstan::extract(out, pars='slope')$slope
+slope_period = rstan::extract(out, pars='slope_period')$slope_period
+
 analysis_data_stan = stan_inputs$analysis_data_stan
-t12_output = data.frame(t_12_med = 24*log10(.5)/apply(slopes,2,mean),
+t12_output = data.frame(t_12_med = 24*log10(.5)/apply(slopes,2,median),
                         t_12_up = 24*log10(.5)/apply(slopes,2,quantile,.9),
                         t_12_low = 24*log10(.5)/apply(slopes,2,quantile,.1),
+                        
                         slope_median = apply(slopes,2,median),
+                        slope_low = apply(slopes,2,quantile,.1),
+                        slope_up = apply(slopes,2,quantile,.9),
+
+                        slope_period_median = apply(slope_period, 2, median),
+                        slope_period_low = apply(slope_period, 2, quantile, .1),
+                        slope_period_up = apply(slope_period, 2, quantile, .9),
+
                         ID_stan = analysis_data_stan$id[analysis_data_stan$ind_start])
 t12_output = merge(t12_output, stan_inputs$ID_map, by = 'ID_stan')
 
@@ -370,6 +381,10 @@ Half_life %>%
 ```
 
 ```{r}
+write.csv(Half_life, 'meta_analysis_estimates.csv', row.names = F)
+```
+
+```{r}
 G2_hl <- plot_hl(Half_life, trt_colors)
 G2_hl
 ```
@@ -380,13 +395,42 @@ G3_trt_effect
 ```
 
 ```{r}
-f_name <- paste("Plots/trt_eff.pdf")
-lab_ref <- ref_arm
-lab_ref[lab_ref == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+slope_baseline <- Half_life$slope_period_median[Half_life$Rand_date == min(Half_life$Rand_date)][1]
 
-pdf(f_name, width = 6, height = 5)
-G3_trt_effect + ggtitle(paste0("Estimated treatment effects \nrelative to ", tolower(lab_ref), " arm"))
+G4 <- ggplot(Half_life, aes(x = Rand_date)) +
+  geom_point(aes(y = slope_median, col = Trt), alpha = 0.55, size = 2.5) +
+  geom_hline(yintercept = slope_baseline, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed", col = "red") +
+  geom_line(aes(y = slope_period_median, group = period_id), col = "black", linewidth = 1.4, alpha = 0.8) +
+  theme_bw(base_size = 12) +
+  xlab("Randomisation date") +
+  ylab("Viral clearance rates (log10 genomes/day)") +
+  scale_color_manual(values = trt_colors, name = "") +
+  theme(axis.title = element_text(face = "bold"),
+        legend.position = "right") 
+G4
+```
+
+```{r}
+png(paste0("Plots/meta_analysis_effects_", nperiod, "_periods.png"), width = 6, height = 5, unit = "in", res = 300)
+G3_trt_effect + ggtitle("")
 dev.off()
+```
+
+```{r}
+png(paste0("Plots/meta_analysis_slopes_", nperiod, "_periods.png"), width = 8, height = 5, unit = "in", res = 300)
+G4
+dev.off()
+```
+
+```{r}
+# f_name <- paste("Plots/trt_eff.pdf")
+# lab_ref <- ref_arm
+# lab_ref[lab_ref == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
+# 
+# pdf(f_name, width = 6, height = 5)
+# G3_trt_effect + ggtitle(paste0("Estimated treatment effects \nrelative to ", tolower(lab_ref), " arm"))
+# dev.off()
 ```
 
 ```{r}
@@ -561,7 +605,7 @@ ind_plot_all <- ggarrange(plotlist =  ind_plot_list, nrow = 4, ncol = 4, common.
 
 ```{r}
 for(i in 1:length(ind_plot_all)){
-  fname <- paste0("Plots/Individual_plot/", intervention, "_analysis_individual_", i, ".png")
+  fname <- paste0("Plots/Individual_plot_meta/", intervention, "_analysis_individual_", i, ".png")
   
   png(fname, width = 8, height = 8, units = "in", res = 300)
   print(annotate_figure( ind_plot_all[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),

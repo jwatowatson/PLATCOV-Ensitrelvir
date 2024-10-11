@@ -75,7 +75,7 @@ parameters {
   // Random effects
   vector[2] theta_rand_id[n_id];            // individual random effects vector
   
-  vector[n_period] period_rand;             // Period random effects vector
+  real period_rand[n_period-1];             // Period random effects vector
   real period_rand_sd;                      // sd for period random effects 
   
   // Degrees of freedom for the t-distribution error model
@@ -87,6 +87,11 @@ transformed parameters {
   vector[Ntot] trt_slope;
   vector[Ntot] beta_cov;
   vector[Ntot] alpha_cov;
+  
+  real Period_rand[n_period];
+  Period_rand[1] = 0;
+  Period_rand[2:n_period] = period_rand;
+  
   {
     vector[K_trt] trt_effect_prime;
     
@@ -102,7 +107,7 @@ transformed parameters {
     for(i in 1:Ntot){
       pred_log10_vl[i] =
       alpha_0 + theta_rand_id[id[i]][1] + alpha_cov[i] + gamma_rnasep*RNaseP[i] +
-      beta_0*exp(trt_slope[i]+theta_rand_id[id[i]][2]+beta_cov[i] + period_rand[period_id[i]])*obs_day[i];
+      beta_0*exp(trt_slope[i]+theta_rand_id[id[i]][2]+beta_cov[i] + Period_rand[period_id[i]])*obs_day[i];
     }
   }
 }
@@ -131,7 +136,7 @@ model {
   
   // Period random effects
   period_rand ~ normal(0, period_rand_sd);
-  
+
   //***** Likelihood *****
   // Non censored observations
   log_10_vl[1:N_obs] ~ student_t(t_dof, pred_log10_vl[1:N_obs], sigma_logvl);
@@ -159,7 +164,7 @@ generated quantities {
   }
   for(i in 1:n_id){
     int j = ind_start[i];
-    slope[i] = beta_0*exp(trt_slope[j]+theta_rand_id[id[j]][2]+beta_cov[j] + period_rand[period_id[j]]);
-    slope_period[i] = beta_0*exp(period_rand[period_id[j]]);
+    slope[i] = beta_0*exp(trt_slope[j]+theta_rand_id[id[j]][2]+beta_cov[j] + Period_rand[period_id[j]]);
+    slope_period[i] = beta_0*exp(Period_rand[period_id[j]]);
   }
 }

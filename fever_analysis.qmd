@@ -154,3 +154,39 @@ print(coxfit)
 ```{r}
 print(data.frame(exp(coxfit$coefficients) , exp(confint(coxfit))))
 ```
+
+```{r}
+#Ensitrelvir vs NSD
+analysed_data <- temp_dat_for_plot %>% filter(Trt != "Nirmatrelvir + Ritonavir")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir vs NSD
+analysed_data <- temp_dat_for_plot %>% filter(Trt != "Ensitrelvir")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir vs Ensitrelvir
+analysed_data <- temp_dat_for_plot %>% filter(Trt != "No study drug")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir + Nirmatrelvir vs NSD
+analysed_data <- temp_dat_for_plot %>% mutate(rangrp = if_else(Trt == "No study drug", rangrp, "Treated"))
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```

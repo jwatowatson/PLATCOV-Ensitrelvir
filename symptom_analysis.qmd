@@ -187,6 +187,42 @@ print(coxfit)
 print(data.frame(exp(coxfit$coefficients) , exp(confint(coxfit))))
 ```
 
+```{r}
+#Ensitrelvir vs NSD
+analysed_data <- sympt_dat_for_plot2 %>% filter(Trt != "Nirmatrelvir + Ritonavir")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir vs NSD
+analysed_data <- sympt_dat_for_plot2 %>% filter(Trt != "Ensitrelvir")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir vs Ensitrelvir
+analysed_data <- sympt_dat_for_plot2 %>% filter(Trt != "No study drug")
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
+```{r}
+#Nirmatrelvir + Nirmatrelvir vs NSD
+analysed_data <- sympt_dat_for_plot2 %>% mutate(Trt = if_else(Trt == "No study drug", Trt, "Treated"))
+
+diff <- survdiff(Surv(clearance_time, clearance_time_cens) ~ Trt, data = analysed_data) 
+diff
+pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+```
+
 ## Bitter taste
 
 ```{r}
