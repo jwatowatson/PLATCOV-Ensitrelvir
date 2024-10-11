@@ -2,7 +2,7 @@ library(ggplot2)
 library(dplyr)
 my_probs = c(0.025, 0.1, .5, .9, .975)
 
-load('Rout/model_run_setup_Unblinded_all.RData')
+load('Rout/model_run_setup_Unblinded_meta.RData')
 
 ff = list.files('Rout/', pattern = paste0('model_fits_temporal_spline'),)
 ff = ff[grep(pattern = 'model_fits_',x = ff, ignore.case = T)]
@@ -82,8 +82,7 @@ geom_point(aes(x = Rand_date, y = beta_hat),
   theme(strip.text = element_text(size = 10, face = "bold"),
         axis.title = element_text(size = 12, face = "bold"),
         plot.title = element_text(size = 14, face = "bold"),
-        panel.spacing = unit(1, "lines")) +
-  coord_cartesian(ylim=c(-3,0))
+        panel.spacing = unit(1, "lines")) 
 
 Sp_all
 

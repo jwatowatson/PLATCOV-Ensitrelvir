@@ -48,7 +48,7 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Unblinded_all' 
+intervention = 'Unblinded_meta' 
 ref_arm = 'No study drug'
 study_threshold = 1.2
 ```
