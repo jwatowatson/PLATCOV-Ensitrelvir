@@ -150,7 +150,7 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                   break.time.by = 1,
                                   pval.size = 4,
                                   pval.coord = c(0,0.1),
-                                  size = 1.2,
+                                  size = 1.5,
                                   alpha = 0.7,
                                   xlim = c(0,7)) 
 survplot$plot <- survplot$plot + 
@@ -161,7 +161,10 @@ survplot$plot <- survplot$plot +
   theme(axis.text=element_text(size=8),
         axis.title=element_text(size=13,face="bold",),
         strip.text = element_text(size = 10, face = "bold"),
-  ) 
+        title = element_text(size = 13, face = "bold")
+
+  ) +
+  ggtitle("B) Symptom resolution")
 
 
 survplot

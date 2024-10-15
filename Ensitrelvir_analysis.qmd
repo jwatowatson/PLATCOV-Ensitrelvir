@@ -50,8 +50,8 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-#intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
-intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
+intervention = 'Ensitrelvir' ; ref_arm = 'Nirmatrelvir'; study_threshold = 0.9
+#intervention = 'Ensitrelvir' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -255,8 +255,11 @@ writeLines(sprintf('We are running all models with %s chains and %s samples for 
                    unique(model_settings$Nthin), 
                    unique(model_settings$Nchain*(model_settings$Niter-model_settings$Nwarmup)/model_settings$Nthin)))
 
-model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'_vs_NSD.RData')
-#model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
+if(ref_arm == "No study drug"){
+model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'_vs_NSD.RData')} else {
+  model_setup_f_name = paste0('Rout/model_run_setup_',intervention,'.RData')
+}
+
 
 save(model_settings, 
      platcov_dat_analysis,
@@ -267,9 +270,10 @@ save(model_settings,
 
 ```{r}
 if(RUN_MODELS){
- # system(paste('Rscript --vanilla run_models_local.R',intervention))
+ if(ref_arm != "No study drug"){
+  system(paste('Rscript --vanilla run_models_local.R',intervention)) } else {
   system(paste('Rscript --vanilla run_models_local.R',paste0(intervention, "_vs_NSD")))
-
+  }
 }
 ```
 
@@ -301,6 +305,14 @@ for(i in 1:length(ff)){
     summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
   rownames(effect_ests[[i]]) = trts
 }
+```
+
+```{r}
+f_name <- paste("Plots/traceplot.pdf")
+
+pdf(f_name, width = 6, height = 4)
+traceplot(out, pars = c('trt_effect', 'alpha_0', 'beta_0'))
+dev.off()
 ```
 
 ## Plot viral dynamics
@@ -357,9 +369,9 @@ Half_life
 ```{r}
 Half_life %>%
   group_by(Trt) %>%
-  summarise(med = median(t_12_med),
-            Q1 = quantile(t_12_med, 0.25),
-            Q3 = quantile(t_12_med, 0.75))
+  summarise(med = round(median(t_12_med),1),
+            Q1 = round(quantile(t_12_med, 0.25),1),
+            Q3 = round(quantile(t_12_med, 0.75),1))
 ```
 
 ```{r}
@@ -490,11 +502,12 @@ rebound_fq
 ```
 
 ```{r}
-prop.test(rebound_fq$x, rebound_fq$n)
+prop.test(rebound_fq$x, rebound_fq$n, correct = T)
 ```
 
 ```{r}
-pairwise.prop.test(rebound_fq$x, rebound_fq$n, p.adjust.method = "none")
+rebound_fq2 <- rebound_fq %>% filter(Trt != "No study drug")
+prop.test(rebound_fq2$x, rebound_fq2$n, correct = T)
 ```
 
 ```{r}
@@ -582,4 +595,126 @@ for(i in 1:length(ind_plot_all_rebound)){
   dev.off()
   
 }
+```
+
+# Individual plots
+
+```{r}
+model_list = list()
+mod_select <- c(1)
+
+stan_inputs_i <- stan_inputs
+platcov_dat_analysis <- data.frame("ID" = stan_inputs_i$analysis_data_stan$id,
+            "log10_viral_load" = stan_inputs_i$analysis_data_stan$log_10_vl,
+            "Time" = stan_inputs_i$analysis_data_stan$obs_day)
+
+ID_map <- stan_inputs_i$ID_map
+
+for(i in 1:length(mod_select)){
+  load(ff)
+  model_list[[i]] = out
+}
+
+
+preds <- lapply(model_list, rstan::extract, "preds")
+preds <- preds[[1]]$preds %>% apply(2, quantile, c(0.025, 0.5, 0.975)) %>% t()
+preds_list <- cbind(platcov_dat_analysis, preds)
+preds_list$model <- "Linear"
+colnames(preds_list) <- c(colnames(platcov_dat_analysis), c("low", "med", "up", "model"))
+preds_list$censor <- "left"
+preds_list$censor[1:stan_inputs_i$analysis_data_stan$N_obs] <- "None"
+preds_list <- merge(preds_list, ID_map, by.x = "ID", by.y = "ID_stan")
+preds_list <- merge(preds_list, as.data.frame(Baseline_data[,c("ID", "Trt")]), by.x = "ID_key", by.y = "ID")
+
+preds_dat <- preds_list
+preds_dat$Trt <- as.character(preds_dat$Trt)
+preds_dat$Trt[preds_dat$Trt == "Nirmatrelvir + Ritonavir"] <- "Nirmatrelvir"
+preds_dat$Trt <- as.factor(preds_dat$Trt)
+
+preds_dat$model <- as.factor(preds_dat$model)
+preds_dat$censor <- as.factor(preds_dat$censor)
+
+
+ID_map = merge(stan_inputs_i$ID_map, Baseline_data, by.x = 'ID_key',by.y = 'ID')
+ID_map <- ID_map[order(ID_map$Trt, ID_map$ID_key),]
+```
+
+```{r}
+ind_plot_list <- list()
+resid_dat <- NULL
+for(i in 1:nrow(ID_map)){
+  
+  plot_data <- preds_dat %>% filter(ID_key == ID_map$ID_key[i])
+  plot_data$resid <- plot_data$log10_viral_load - plot_data$med
+  plot_data$Timepoint_ID <- round(plot_data$Time)
+  resid_dat <- rbind(resid_dat, plot_data)
+  
+  lab <- paste0(plot_data$ID_key[1], "\n", plot_data$Trt[1])
+  
+  ind_plot_list[[i]] <- ggplot() +
+    geom_point(data = plot_data[plot_data$model == "Linear",], aes(x = Time, y = log10_viral_load, shape = censor),
+               size = 2.5, alpha = 0.7) +
+    geom_ribbon(data = plot_data, aes(x = Time, ymin = low, ymax = up, fill = model), alpha = 0.2) +
+    geom_line(data = plot_data, aes(x = Time, y = med, col = model), linewidth = 1) +
+    theme_bw() +
+    scale_y_continuous(labels=label_math(), breaks = seq(0,10,2)) +
+    coord_cartesian(ylim = c(0,9), xlim = c(0,7))+
+    scale_x_continuous(breaks = 0:14) +
+    ylab("") +
+    xlab("") +
+    theme(
+      axis.title  = element_text(face = "bold"),
+      plot.title = element_text(face = "bold", hjust = 0.5, size = 8),
+      legend.position = "right",
+      plot.margin = unit(c(0.1,0.1,0.1,0.1), 'lines')) +
+    scale_color_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+    scale_fill_manual(values = c("#1640D6", "#BE3144"), name = "Model") +
+    scale_shape_manual(values = c(17, 16), guide = "none", drop=FALSE) +
+    ggtitle(lab)
+  
+}
+```
+
+```{r}
+ind_plot_all <- ggarrange(plotlist =  ind_plot_list, nrow = 4, ncol = 4, common.legend = T, legend = "right")
+```
+
+```{r}
+for(i in 1:length(ind_plot_all)){
+
+png(paste0("Plots/Individual_plots/Ind_plot_", i, ".png"), width = 12, height = 8, units = "in", res = 350)
+
+print(annotate_figure( ind_plot_all[[i]], bottom = textGrob("Time since randomisation (days)", vjust = 0.5, gp = gpar(cex = 1.2, fontface="bold")),
+                left = textGrob("SARS-CoV-2 genomes/mL", rot = 90, gp = gpar(cex = 1.2, fontface="bold"))))
+dev.off()
+  
+  
+}
+```
+
+## Residuals analysis
+
+```{r}
+resid_plot <- ggplot(resid_dat[resid_dat$Timepoint_ID <= 7,], aes(x = as.factor(Timepoint_ID), y = resid)) +
+  geom_jitter(width = 0.2, alpha = 0.15, size = 2, aes(shape = censor, color = censor)) +
+  geom_boxplot(outlier.shape = NA, fill = "white", alpha = 0.85) +
+  theme_bw() +
+  facet_grid(model~ Trt) +
+  geom_hline(yintercept = 0, col = "red", linetype = "dashed") +
+  xlab("Time since randomisation (days)") +
+  ylab("Residuals") +
+  theme(
+    axis.title  = element_text(face = "bold", size = 12),
+    strip.text = element_text(face = "bold", size = 10),
+    legend.position = "bottom"
+) +
+  scale_shape_manual(values = c(17, 16), name = "Censor") +
+  scale_color_manual(values = rev(c("#38419D", "#BF3131")), name = "Censor")
+resid_plot 
+```
+
+```{r}
+png("Plots/residual_plot.png" , width = 8, height = 6, units = "in", res = 350)
+resid_plot
+dev.off()
 ```
