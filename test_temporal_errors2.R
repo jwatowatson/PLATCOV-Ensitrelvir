@@ -22,14 +22,14 @@ ind_res <-1
 n_id <- stan_inputs[[model_settings$dataset[ind_res]]]$analysis_data_stan$n_id
 ind_start <- stan_inputs[[model_settings$dataset[ind_res]]]$analysis_data_stan$ind_start
 
-post_beta_hat <- rstan::extract(out, "beta_hat")[[1]]
-post_Beta_hat <- rstan::extract(out, "Beta_hat")[[1]]
+#post_beta_hat <- rstan::extract(out, "beta_hat")[[1]]
+#post_Beta_hat <- rstan::extract(out, "Beta_hat")[[1]]
 #post_Beta_hat_trt <- rstan::extract(out, "Beta_hat_trt")[[1]]
 post_slope <- rstan::extract(out, "slope")[[1]]
-post_Trt_slope <- rstan::extract(out, "Trt_slope")[[1]]
+#post_Trt_slope <- rstan::extract(out, "Trt_slope")[[1]]
 
-post_beta_hat_summarize <- apply(post_beta_hat, 2, quantile, c(0.025, 0.5, 0.975))
-post_Beta_hat_summarize <- apply(post_Beta_hat, 2, quantile, c(0.025, 0.5, 0.975))
+#post_beta_hat_summarize <- apply(post_beta_hat, 2, quantile, c(0.025, 0.5, 0.975))
+#post_Beta_hat_summarize <- apply(post_Beta_hat, 2, quantile, c(0.025, 0.5, 0.975))
 #post_Beta_hat_trt_summarize <- apply(post_Beta_hat_trt, 2, quantile, c(0.025, 0.5, 0.975))
 post_slope_summarize <- apply(post_slope, 2, quantile, c(0.025, 0.5, 0.975))
 
@@ -46,14 +46,14 @@ post_slope_summarize <- apply(post_slope, 2, quantile, c(0.025, 0.5, 0.975))
 
 
 data_for_plot_slope <-  platcov_dat_analysis_list[[model_settings$dataset[ind_res]]][ind_start,]
-t12_output = data.frame(slope_med = apply(post_slope,2,median),
-                        Beta_hat = apply(post_Beta_hat,2,median),
-                        beta_hat = apply(post_beta_hat,2,median),
-                        Trt_slope = apply(post_Trt_slope,2,median),
-                        ID_stan = stan_inputs[[model_settings$dataset[ind_res]]]$analysis_data_stan$id[ind_start],
-                        i = 1:nrow(ID_map),
-                        ID_map_key = ID_map$ID_key,
-                        ID_map_i = ID_map$ID_stan)
+t12_output = data.frame(slope_med = apply(post_slope,2,median))#,
+                        #Beta_hat = apply(post_Beta_hat,2,median),
+                        #beta_hat = apply(post_beta_hat,2,median),
+                        #Trt_slope = apply(post_Trt_slope,2,median),
+                        #ID_stan = stan_inputs[[model_settings$dataset[ind_res]]]$analysis_data_stan$id[ind_start],
+                        #i = 1:nrow(ID_map),
+                        #ID_map_key = ID_map$ID_key,
+                        #ID_map_i = ID_map$ID_stan)
 
 t12_output = merge(t12_output, ID_map, by.x = 'ID_stan', by.y = "ID_stan")
 data_for_plot_slope = merge(data_for_plot_slope, t12_output, by.x = 'ID', by.y = 'ID_key')

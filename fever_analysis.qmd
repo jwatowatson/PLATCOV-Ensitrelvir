@@ -87,7 +87,8 @@ temp_dat_for_plot2 <- temp_dat_for_plot2 %>%
 ```{r}
 fit <- survfit(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
 diff=survdiff(Surv(clearance_time, clearance_time_cens) ~ rangrp, data = temp_dat_for_plot2) 
-pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+p_val <- pchisq(diff$chisq, length(diff$n)-1, lower.tail = FALSE)
+p_val
 ```
 
 ```{r}
@@ -104,7 +105,7 @@ cols <- as.character(cols)
 ```
 
 ```{r}
-survplot <- survminer::ggsurvplot(fit,pval=T,
+survplot <- survminer::ggsurvplot(fit,pval=F,
                                   risk.table = T,
                                   risk.table.y.text=F,
                                   palette = cols,
@@ -113,8 +114,8 @@ survplot <- survminer::ggsurvplot(fit,pval=T,
                                                   ref_arm,
                                                   "No study drug"),
                                   break.time.by = 1,
-                                  pval.size = 4,
-                                  pval.coord = c(0,0.1),
+                                  #pval.size = 4,
+                                  #pval.coord = c(0,0.1),
                                   size = 1.5,
                                   alpha = 0.7,
                                   xlim = c(0,7)) 
@@ -128,7 +129,8 @@ survplot$plot <- survplot$plot +
         axis.title=element_text(size=13,face="bold",),
         strip.text = element_text(size = 10, face = "bold"),
         title = element_text(size = 13, face = "bold")
-  ) 
+  ) +
+  annotate("text", x = 0, y = 0.1, label = paste0("p-value = ", round(p_val,1)), vjust=0, hjust = 0)
 
 
 survplot

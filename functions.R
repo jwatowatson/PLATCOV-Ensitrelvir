@@ -727,6 +727,8 @@ plot_vl <- function(dataplot, trt_colors){
     group_by(Trt, Timepoint_ID) %>%
     summarise(median_VL = median(daily_VL), .groups = 'drop')
   
+  dataplot$Trt <- factor(dataplot$Trt, levels = c("Ensitrelvir", "Nirmatrelvir", "No study drug"))
+  
   colors <- trt_colors[names(trt_colors) %in% unique(dataplot$Trt)]
   colors <- colors[levels(dataplot$Trt)]
   labels <- names(colors)
