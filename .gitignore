@@ -48,4 +48,5 @@ po/*~
 # RStudio Connect folder
 rsconnect/
 *.RData
-/Analysis_Data
+#/Analysis_Data
+user_settings.R
