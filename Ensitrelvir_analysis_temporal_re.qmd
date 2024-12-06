@@ -463,4 +463,3 @@ for(i in 1:nrow(effect_ests_rep)){
 trt_effects <- rstan::extract(out, 'trt_effect')$trt_effect
 sum(formatter(exp(trt_effects[,1])) < formatter(study_threshold))/nrow(trt_effects)
 ```
-
