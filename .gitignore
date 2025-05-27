@@ -50,3 +50,8 @@ rsconnect/
 *.RData
 #/Analysis_Data
 user_settings.R
+Analysis_Data/Ensitrelvir_time_not_matched_temperature_Padd.xls
+Analysis_Data/interim_all_analysis.csv
+Analysis_Data/other_symptoms_6.0_EB_for review.xlsm
+Analysis_Data/other_symptoms_ensitrelvir_v2.0_EB.csv
+Analysis_Data/other_symptoms_ensitrelvir_v3.0_EB.csv
