@@ -823,13 +823,20 @@ formatter <- function(x){
   (x-1)*100 
 }
 
-plot_trt_effs <- function(effect_ests){
+plot_trt_effs <- function(effect_ests, unblinded_arms, pop_table){
   effect_ests_plot <- as.data.frame(do.call("rbind", effect_ests))
   effect_ests_plot <- exp(effect_ests_plot)
   colnames(effect_ests_plot)[1:5] <- c("L95", "L80", "med", "U80", "U95")
   
   effect_ests_plot$arm <- row.names(effect_ests_plot)
+  effect_ests_plot <- effect_ests_plot %>% filter(!arm %in% unblinded_arms)
+  
   effect_ests_plot$arm <- as.factor(effect_ests_plot$arm)
+  
+  n_mITT <- pop_table %>% group_by(Trt, mITT) %>% summarise(n = n()) %>%
+    filter(mITT, Trt %in% effect_ests_plot$arm)
+  
+  effect_ests_plot <- left_join(effect_ests_plot, n_mITT, by = c("arm" = "Trt"))
   
   #Labeling reference arm
   lab_ref <- ref_arm
@@ -837,10 +844,14 @@ plot_trt_effs <- function(effect_ests){
   
   effect_ests_plot <- effect_ests_plot[order(effect_ests_plot$med),]
   effect_ests_plot$arm <- factor(effect_ests_plot$arm, levels = effect_ests_plot$arm)
-  levels(effect_ests_plot$arm)[effect_ests_plot$arm == "Nirmatrelvir"] <- "Ritonavir-boosted\nnirmatrelvir"
+  levels(effect_ests_plot$arm)[effect_ests_plot$arm == "Nirmatrelvir"] <- "Ritonavir-boosted nirmatrelvir"
   #Labeling intervention arm
   my.labs <- levels(effect_ests_plot$arm)
-  my.labs[my.labs == "Nirmatrelvir+Molnupiravir"] <- "Nirmatrelvir +\nMolnupiravir"
+  my.labs[my.labs == "Nirmatrelvir + Ritonavir + Molnupiravir"] <- "Ritonavir-boosted nirmatrelvir\n + Molnupiravir combination"
+  my.labs[my.labs == "Regeneron"] <- "Casirivimab/imdevimab"
+  my.labs[my.labs == "Evusheld"] <- "Tixegavimab/cilgavimab"
+  
+  my.labs <- paste0(my.labs, "\n(n=", effect_ests_plot$n, ")" )
   
   title <- paste0("B) Estimated treatment effects \nrelative to ", tolower(lab_ref), " arm")
   

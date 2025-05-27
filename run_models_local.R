@@ -49,8 +49,8 @@ for(i in 1:nrow(model_settings)){
                  warmup=model_settings$Nwarmup[i],
                  save_warmup = FALSE,
                  seed=i,
-                 pars=c('L_Omega'), # we don't save this as it takes up lots of memory!
-                 include=FALSE)
+                # pars=c('L_Omega'), # we don't save this as it takes up lots of memory!
+                 include=TRUE)
   
   
   save(out, file = paste0('Rout/model_fits_',i,'_',args[1],'.RData'))# save output

@@ -50,7 +50,7 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'Unblinded_meta' ; ref_arm = 'No study drug'; study_threshold = 1.2
+intervention = 'interim_all' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -139,7 +139,7 @@ tab.ff
 ```
 
 ```{r}
-nperiod <- 10
+nperiod <- 20
 quant <- quantile(Baseline_data$Rand_date, seq(0,1,1/nperiod))
 
 platcov_dat <- platcov_dat %>% 
@@ -309,6 +309,8 @@ for(i in 1:length(ff)){
     summary(out, pars='trt_effect',use_cache=F,probs=my_probs)$summary[,c('2.5%','10%','50%','90%','97.5%'),drop=F]
   rownames(effect_ests[[i]]) = trts
 }
+
+names(effect_ests) <- "Model 1"
 ```
 
 ## Plot viral dynamics
@@ -373,6 +375,35 @@ Half_life
 ```
 
 ```{r}
+slopes = rstan::extract(out, pars='slope')$slope  
+slope_period = rstan::extract(out, pars='slope_period')$slope_period
+trt_effects = rstan::extract(out, 'trt_effect')$trt_effect
+colnames(trt_effects) = trts
+ID_stan = analysis_data_stan$id[analysis_data_stan$ind_start]
+
+
+for(i in 1:nrow(Half_life)){
+
+  trt_i <- Half_life$Trt[i]
+  ID_stan_i <- Half_life$ID_stan[i]
+  slope_period_i <- slope_period[,which(ID_stan == ID_stan_i)]
+  
+  if(trt_i == "No study drug"){
+    slope_period_trt_i <- slope_period_i
+  } else {
+    slope_period_trt_i <- slope_period_i * exp(trt_effects[,as.character(trt_i)])
+  }
+  Half_life$slope_trt_period_median[i] <- quantile(slope_period_trt_i, 0.5)
+  Half_life$slope_trt_period_low[i] <- quantile(slope_period_trt_i, 0.025)
+  Half_life$slope_trt_period_up[i] <- quantile(slope_period_trt_i, 0.975)
+  
+}
+
+Half_life$period_id_trt <- paste0(Half_life$period_id, Half_life$Trt)
+
+```
+
+```{r}
 Half_life %>%
   group_by(Trt) %>%
   summarise(med = median(t_12_med),
@@ -385,20 +416,27 @@ write.csv(Half_life, 'meta_analysis_estimates.csv', row.names = F)
 ```
 
 ```{r}
+names(trt_colors)[names(trt_colors) == "Nirmatrelvir+Molnupiravir"] <- "Nirmatrelvir + Ritonavir + Molnupiravir"
+
 G2_hl <- plot_hl(Half_life, trt_colors)
 G2_hl
 ```
 
 ```{r}
-G3_trt_effect <- plot_trt_effs(effect_ests)
+
+unblinded_arms <- c("Nitazoxanide", "Metformin", "Ensitrelvir", 
+                    "Hydroxychloroquine", "Nirmatrelvir + Ritonavir + Molnupiravir", "Evusheld")
+
+G3_trt_effect <- plot_trt_effs(effect_ests, unblinded_arms, pop_table)
 G3_trt_effect
 ```
 
 ```{r}
 slope_baseline <- Half_life$slope_period_median[Half_life$Rand_date == min(Half_life$Rand_date)][1]
 
-G4 <- ggplot(Half_life, aes(x = Rand_date)) +
-  geom_point(aes(y = slope_median, col = Trt), alpha = 0.55, size = 2.5) +
+
+G4 <- ggplot(Half_life %>% filter(!Trt %in% unblinded_arms), aes(x = Rand_date)) +
+  geom_point(aes(y = slope_median, col = Trt), alpha = 0.55, size = 2) +
   geom_hline(yintercept = slope_baseline, linetype = "dashed") +
   geom_hline(yintercept = 0, linetype = "dashed", col = "red") +
   geom_line(aes(y = slope_period_median, group = period_id), col = "black", linewidth = 1.4, alpha = 0.8) +
@@ -412,13 +450,13 @@ G4
 ```
 
 ```{r}
-png(paste0("Plots/meta_analysis_effects_", nperiod, "_periods.png"), width = 6, height = 5, unit = "in", res = 300)
+png(paste0("Plots/meta_analysis_effects_", intervention,"_", nperiod, "_periods_2.png"), width = 8, height = 5, unit = "in", res = 300)
 G3_trt_effect + ggtitle("")
 dev.off()
 ```
 
 ```{r}
-png(paste0("Plots/meta_analysis_slopes_", nperiod, "_periods.png"), width = 8, height = 5, unit = "in", res = 300)
+png(paste0("Plots/meta_analysis_slopes_", intervention,"_",nperiod, "_periods.png"), width = 8, height = 5, unit = "in", res = 300)
 G4
 dev.off()
 ```
