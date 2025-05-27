@@ -50,7 +50,7 @@ All paths are local
 Set up analysis
 
 ```{r load_data}
-intervention = 'interim_all' ; ref_arm = 'No study drug'; study_threshold = 1.2
+intervention = 'Unblinded_meta' ; ref_arm = 'No study drug'; study_threshold = 1.2
 ```
 
 ```{r define_population}
@@ -139,7 +139,7 @@ tab.ff
 ```
 
 ```{r}
-nperiod <- 20
+nperiod <- 10
 quant <- quantile(Baseline_data$Rand_date, seq(0,1,1/nperiod))
 
 platcov_dat <- platcov_dat %>% 
@@ -450,7 +450,7 @@ G4
 ```
 
 ```{r}
-png(paste0("Plots/meta_analysis_effects_", intervention,"_", nperiod, "_periods_2.png"), width = 8, height = 5, unit = "in", res = 300)
+pdf(paste0("Plots/meta_analysis_effects_", intervention,"_", nperiod, "_periods_2.pdf"), width = 8, height = 5)
 G3_trt_effect + ggtitle("")
 dev.off()
 ```
